@@ -1,0 +1,7 @@
+Payroll SOP
+
+If payroll sync fails:
+1. Check the integration logs.
+2. Notify operations.
+3. Create a high priority incident ticket.
+4. Send an update email to stakeholders.

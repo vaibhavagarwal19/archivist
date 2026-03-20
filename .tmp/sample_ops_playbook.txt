@@ -1,0 +1,13 @@
+Operations Playbook - Q2 Planning
+
+Section 1: Payroll Sync Incident Handling
+Payroll sync incidents must be triaged within 15 minutes of detection. The first responder should open the integration dashboard, verify whether the failure is caused by authentication, schema mismatch, or transport timeout, and copy the latest error trace into the incident notes. If the dashboard shows repeated failures for more than ten minutes, operations must notify the payroll systems owner and the finance operations lead. If employee payments are at risk, a Sev-1 incident ticket should be created immediately. Stakeholders must receive an update email with a clear status line, current impact, mitigation actions, and expected next update time.
+
+Section 2: Hiring Blockers and Vendor Delays
+Vendor delays have slowed onboarding for engineering and support roles during the current quarter. The onboarding vendor has missed two turnaround windows for hardware fulfillment, while background verification has exceeded the promised service level for several candidates. Finance approved the revised hiring timeline on March 12 after reviewing the vendor constraints and cash flow forecast. Operations is responsible for notifying all affected vendors about the updated hiring dates, revised onboarding batches, and the requirement to provide a weekly exception log until service levels return to normal.
+
+Section 3: Weekly Operating Review Inputs
+The weekly operating review should highlight three items: wins, blockers, and next actions. Wins should include completed launches, resolved incidents, and critical hires closed. Blockers should include payroll sync reliability, vendor onboarding delays, unresolved security reviews, and staffing bottlenecks in support. Next actions should include assigning owners, target dates, escalation paths, and a brief statement of business impact.
+
+Section 4: Communication Standards
+Every update sent to stakeholders should include a one-sentence overview, a status indicator, the affected teams, the actions taken so far, and the next checkpoint. Internal summaries should be concise, operational, and written for busy readers. Reports for leadership should include recommendations and explicitly call out risks to execution, timeline, and employee experience.
