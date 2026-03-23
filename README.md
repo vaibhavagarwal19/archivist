@@ -51,8 +51,13 @@ InternalAiAgents/
 │   ├── utils/
 │   │   └── text.py
 │   └── main.py
+├── frontend/
+│   └── streamlit_app.py
+├── tests/
+│   └── README.md
 ├── .env.example
 ├── .gitignore
+├── README.md
 ├── requirements.txt
 └── worker.py
 ```
@@ -145,7 +150,7 @@ or use:
 ### Start the Streamlit frontend
 
 ```bash
-streamlit run streamlit_app.py
+streamlit run frontend/streamlit_app.py
 ```
 
 ### Start the Celery worker
@@ -167,7 +172,7 @@ The project now includes a Streamlit dashboard that talks to the FastAPI backend
 - Open `http://127.0.0.1:8501` to access the UI
 - Authenticate with register/login from the Streamlit access panel
 - Use the dashboard sections to access chat, report generation, meeting summaries, workflow execution, and document upload/listing
-- The frontend stores the JWT in Streamlit session state and attaches it to protected API requests
+- The frontend runs from `frontend/streamlit_app.py`
 - The chat panel shows the detected intent, confidence, planner reasoning, planned tool steps, retrieved context, and executed tool calls
 
 ## 8. API Flow

@@ -52,6 +52,6 @@ async def root() -> JSONResponse:
         {
             "message": "Internal AI Agents API is running.",
             "docs_url": "/docs",
-            "streamlit_frontend": "Run `streamlit run streamlit_app.py` to start the UI.",
+            "streamlit_frontend": "Run `streamlit run frontend/streamlit_app.py` to start the UI.",
         }
     )

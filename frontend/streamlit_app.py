@@ -129,7 +129,7 @@ def render_sidebar() -> None:
         st.caption(f"Checked: {health['checked_at']}")
         st.divider()
         st.caption(
-            "Run the API with `python -m uvicorn app.main:app --reload` and the UI with `streamlit run streamlit_app.py`."
+            "Run the API with `python -m uvicorn app.main:app --reload` and the UI with `streamlit run frontend/streamlit_app.py`."
         )
 
 
