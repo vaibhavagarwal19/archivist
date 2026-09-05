@@ -16,7 +16,6 @@ from app.services.report_service import ReportService
 from app.services.summary_service import SummaryService
 from app.services.vector_store import VectorStoreService
 
-
 IntentType = Literal[
     "greeting",
     "summarization",

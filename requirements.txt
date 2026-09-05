@@ -1,22 +1,39 @@
+# Web framework
 fastapi==0.115.12
 uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Database
 sqlalchemy==2.0.39
 psycopg[binary]==3.2.6
+alembic==1.14.1
+
+# Auth
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+passlib==1.7.4
+
+# Config / validation
 pydantic==2.10.6
 pydantic-settings==2.8.1
-python-multipart==0.0.20
 email-validator==2.2.0
+
+# LLM + agent orchestration
 openai==1.68.2
 langchain==0.3.21
 langchain-core==0.3.49
 langchain-community==0.3.20
-langchain-ollama==0.2.3
 langchain-openai==0.3.10
+langchain-ollama==0.2.3
 langgraph==0.3.21
+
+# Retrieval
 faiss-cpu==1.10.0
+fastembed==0.7.1
+
+# Background jobs (optional at runtime)
 celery==5.4.0
 redis==5.2.1
-requests==2.32.3
+
+# Frontend
 streamlit==1.44.1
+requests==2.32.3

@@ -5,7 +5,6 @@ from app.models.user import User
 from app.schemas.report import SummaryRequest, SummaryResponse
 from app.services.summary_service import SummaryService
 
-
 router = APIRouter(prefix="/summarize")
 
 

@@ -8,7 +8,6 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import Token, UserCreate, UserLogin, UserRead
 
-
 router = APIRouter(prefix="/auth")
 
 

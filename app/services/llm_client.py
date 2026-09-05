@@ -1,7 +1,7 @@
 from openai import AsyncOpenAI
 
-from app.core.exceptions import ServiceConfigurationError
 from app.core.config import get_settings
+from app.core.exceptions import ServiceConfigurationError
 
 
 def get_llm_client() -> AsyncOpenAI:

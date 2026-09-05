@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 
-
 settings = get_settings()
 
 engine_kwargs = {"pool_pre_ping": True}

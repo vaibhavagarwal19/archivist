@@ -1,0 +1,70 @@
+# Render Blueprint - deploys the API, the Streamlit UI, and Postgres together.
+# Create it from the Render dashboard: New > Blueprint > point at this repo.
+#
+# After the first deploy, set GROQ_API_KEY on the api service (it is marked
+# sync:false so the key never lives in this file).
+
+databases:
+  - name: internal-ai-agents-db
+    databaseName: internal_ai_agents
+    user: internal_ai_agents
+    plan: free
+
+services:
+  - type: web
+    name: internal-ai-agents-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: internal-ai-agents-db
+          property: connectionString
+      # Generated once by Render and kept across deploys, so tokens issued
+      # before a redeploy stay valid.
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: groq
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: llama-3.1-8b-instant
+      - key: EMBEDDING_PROVIDER
+        value: fastembed
+      - key: EMBEDDING_MODEL
+        value: BAAI/bge-small-en-v1.5
+      # The free plan has no persistent disk, so the index is rebuilt from
+      # Postgres on every boot.
+      - key: REINDEX_ON_STARTUP
+        value: "true"
+      - key: ENABLE_BACKGROUND_TASKS
+        value: "false"
+
+  - type: web
+    name: internal-ai-agents-ui
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    dockerCommand: >-
+      streamlit run frontend/streamlit_app.py
+      --server.port $PORT
+      --server.address 0.0.0.0
+      --server.headless true
+    envVars:
+      # Point the UI at the API's public URL.
+      - key: API_BASE_URL
+        fromService:
+          name: internal-ai-agents-api
+          type: web
+          property: host
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"

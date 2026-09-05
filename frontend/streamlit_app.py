@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Any
 
@@ -7,12 +8,30 @@ import requests
 import streamlit as st
 
 
-DEFAULT_API_BASE = "http://127.0.0.1:8000"
+def _resolve_api_base() -> str:
+    """Where the API lives.
+
+    In a container the API is a different host, so this must be injectable.
+    Render's `fromService` supplies a bare hostname with no scheme, so add one
+    when it is missing - https for real hosts, http for loopback.
+    """
+    value = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000").strip()
+    if not value:
+        return "http://127.0.0.1:8000"
+    if "://" not in value:
+        local = value.startswith(("localhost", "127.0.0.1"))
+        value = f"{'http' if local else 'https'}://{value}"
+    return value.rstrip("/")
+
+
+# The sidebar can still override this at run time.
+DEFAULT_API_BASE = _resolve_api_base()
 
 
 def init_state() -> None:
     defaults = {
         "api_base": DEFAULT_API_BASE,
+        "access_token": None,
         "current_user": None,
         "message": None,
         "health": None,
@@ -40,6 +59,9 @@ def api_request(
     files: dict[str, Any] | None = None,
 ) -> Any:
     headers: dict[str, str] = {}
+    token = st.session_state.get("access_token")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
 
     response = requests.request(
         method=method,
@@ -92,13 +114,49 @@ def refresh_health() -> None:
 
 
 def hydrate_session() -> None:
+    """Load the signed-in user and their documents, if a token is present."""
+    if not st.session_state.get("access_token"):
+        st.session_state.current_user = None
+        st.session_state.documents = []
+        return
     try:
         st.session_state.current_user = api_request("/api/v1/auth/me")
         refresh_documents()
     except Exception as exc:
+        # An expired or invalid token should drop the session, not wedge the UI.
+        st.session_state.access_token = None
         st.session_state.current_user = None
         st.session_state.documents = []
-        set_message("error", f"Workspace unavailable: {exc}")
+        set_message("error", f"Session ended, please sign in again: {exc}")
+
+
+def sign_in(email: str, password: str) -> None:
+    token = api_request(
+        "/api/v1/auth/login",
+        method="POST",
+        json_body={"email": email, "password": password},
+    )
+    st.session_state.access_token = token["access_token"]
+    hydrate_session()
+    set_message("success", f"Signed in as {email}.")
+
+
+def sign_up(email: str, full_name: str, password: str) -> None:
+    api_request(
+        "/api/v1/auth/register",
+        method="POST",
+        json_body={"email": email, "full_name": full_name, "password": password},
+    )
+    sign_in(email, password)
+
+
+def sign_out() -> None:
+    st.session_state.access_token = None
+    st.session_state.current_user = None
+    st.session_state.documents = []
+    for key in ("chat_result", "report_result", "summary_result", "workflow_result"):
+        st.session_state[key] = None
+    set_message("info", "Signed out.")
 
 
 def refresh_documents() -> None:
@@ -135,22 +193,54 @@ def render_sidebar() -> None:
 
 def render_workspace_status() -> None:
     st.markdown("### Workspace Access")
-    user = st.session_state.current_user or {}
-    st.success(f"Active workspace: {user.get('full_name') or 'Guest Workspace'}")
-    st.caption(
-        "Authentication is disabled for this UI right now. Anyone opening the app uses the shared guest workspace."
-    )
-    if user.get("email"):
-        st.code(user["email"], language="text")
+    user = st.session_state.current_user
+
+    if user:
+        st.success(f"Signed in as {user.get('full_name') or user.get('email')}")
+        st.code(user.get("email", ""), language="text")
+        st.caption("Documents, reports, and workflow actions are scoped to this account.")
+        if st.button("Sign out", use_container_width=True):
+            sign_out()
+            st.rerun()
+        return
+
+    st.info("Sign in to use the workspace. Each account sees only its own documents.")
+    login_tab, register_tab = st.tabs(["Sign in", "Create account"])
+
+    with login_tab:
+        with st.form("sign_in_form"):
+            email = st.text_input("Email", key="login_email")
+            password = st.text_input("Password", type="password", key="login_password")
+            if st.form_submit_button("Sign in", use_container_width=True):
+                try:
+                    sign_in(email, password)
+                    st.rerun()
+                except Exception as exc:
+                    set_message("error", str(exc))
+
+    with register_tab:
+        with st.form("sign_up_form"):
+            new_email = st.text_input("Email", key="register_email")
+            new_name = st.text_input("Full name", key="register_name")
+            new_password = st.text_input(
+                "Password", type="password", key="register_password",
+                help="At least 8 characters.",
+            )
+            if st.form_submit_button("Create account", use_container_width=True):
+                try:
+                    sign_up(new_email, new_name, new_password)
+                    st.rerun()
+                except Exception as exc:
+                    set_message("error", str(exc))
 
 
 def render_overview() -> None:
     user = st.session_state.current_user
     docs = st.session_state.documents
     c1, c2, c3 = st.columns(3)
-    c1.metric("Workspace", "Live" if user else "Guest")
-    c2.metric("Indexed documents", len(docs))
-    c3.metric("Capabilities", "8")
+    c1.metric("Signed in as", user.get("full_name") or user.get("email") if user else "-")
+    c2.metric("Your documents", len(docs))
+    c3.metric("Agent tools", "5")
 
 
 def get_document_scope_options() -> list[dict[str, Any]]:
@@ -462,6 +552,15 @@ def main() -> None:
 
     render_sidebar()
     show_message()
+
+    # Every workspace panel calls a protected endpoint, so there is nothing
+    # meaningful to render until the visitor has signed in.
+    if not st.session_state.current_user:
+        left, _ = st.columns([0.5, 0.5], gap="large")
+        with left:
+            render_workspace_status()
+        return
+
     render_overview()
 
     left, right = st.columns([0.36, 0.64], gap="large")

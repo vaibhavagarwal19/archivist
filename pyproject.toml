@@ -1,0 +1,29 @@
+[project]
+name = "internal-ai-agents"
+version = "1.0.0"
+description = "FastAPI + LangGraph internal agent platform with RAG, auth, and workflow tools"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning:passlib.*",
+    "ignore::DeprecationWarning:jose.*",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+exclude = [".venv", "alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "B008",  # FastAPI's Depends() in defaults is the framework idiom
+    "E501",  # long lines are handled by the formatter, not the linter
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]

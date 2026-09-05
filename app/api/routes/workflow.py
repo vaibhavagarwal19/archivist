@@ -7,7 +7,6 @@ from app.models.user import User
 from app.schemas.report import WorkflowRequest, WorkflowResponse
 from app.services.workflow_service import WorkflowService
 
-
 router = APIRouter(prefix="/workflow")
 
 

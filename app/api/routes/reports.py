@@ -7,7 +7,6 @@ from app.models.user import User
 from app.schemas.report import ReportRequest, ReportResponse
 from app.services.report_service import ReportService
 
-
 router = APIRouter(prefix="/generate-report")
 
 

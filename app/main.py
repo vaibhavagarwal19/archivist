@@ -1,6 +1,7 @@
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi import Request
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -15,7 +16,31 @@ from app.db.init_db import init_db
 async def lifespan(_: FastAPI):
     configure_logging()
     init_db()
+    rebuild_index_if_requested()
     yield
+
+
+def rebuild_index_if_requested() -> None:
+    """Rebuild the vector index at startup when the filesystem is ephemeral.
+
+    On hosts that do not persist disk (Render's free tier, for example) the
+    FAISS index is gone after every deploy, which would make retrieval return
+    nothing at all while still appearing healthy. Document text is stored in
+    the database, so the index can be regenerated from it.
+    """
+    settings = get_settings()
+    if not settings.reindex_on_startup:
+        return
+
+    logger = logging.getLogger(__name__)
+    try:
+        from scripts.reindex import reindex
+
+        documents, chunks = reindex(drop_existing=True)
+        logger.info("Rebuilt vector index: %s document(s), %s chunk(s)", documents, chunks)
+    except Exception:
+        # A failed rebuild must not stop the API from serving.
+        logger.exception("Startup reindex failed; retrieval may return no results")
 
 
 settings = get_settings()

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check app frontend scripts tests
+
+      - name: Run tests
+        run: pytest
+        env:
+          # The suite uses SQLite and stubs the model calls; no secrets needed.
+          SECRET_KEY: ci-secret-key-long-enough-for-validation
+          DEBUG: "true"
+
+      - name: Verify migrations build the schema from scratch
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: sqlite:///./ci-migration-check.db
+          SECRET_KEY: ci-secret-key-long-enough-for-validation
+          DEBUG: "true"

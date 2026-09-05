@@ -1,8 +1,8 @@
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 
-from app.core.exceptions import ServiceConfigurationError
 from app.core.config import get_settings
+from app.core.exceptions import ServiceConfigurationError
 
 
 def get_langchain_chat_model(temperature: float = 0) -> ChatOllama | ChatOpenAI:

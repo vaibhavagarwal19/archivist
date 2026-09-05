@@ -1,6 +1,26 @@
-.venv/
+# Python
 __pycache__/
-.pytest_cache/
-.env
-storage/
 *.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Environment / secrets
+.env
+.env.local
+
+# Local databases (never commit real data)
+*.db
+*.sqlite
+*.sqlite3
+
+# Runtime artifacts
+storage/
+.tmp/
+logs/
+
+# OS
+.DS_Store
