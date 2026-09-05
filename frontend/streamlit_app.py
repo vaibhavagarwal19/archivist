@@ -102,6 +102,7 @@ def init_state() -> None:
         "health": None,
         "documents": [],
         "messages": [],
+        "thread_id": None,
         "page": "Chat",
         "chat_use_rag": True,
         "chat_document_id": None,
@@ -231,6 +232,7 @@ def sign_out() -> None:
         st.session_state[key] = None
     st.session_state.documents = []
     st.session_state.messages = []
+    st.session_state.thread_id = None
 
 
 # --------------------------------------------------------------------------
@@ -353,6 +355,16 @@ def render_trace(result: dict[str, Any]) -> None:
         )
         st.markdown("".join(pills), unsafe_allow_html=True)
 
+        usage = result.get("usage") or {}
+        if usage:
+            st.markdown(
+                f'<span class="pill">{usage.get("llm_calls", 0)} model calls</span>'
+                f'<span class="pill">{usage.get("total_tokens", 0):,} tokens</span>'
+                f'<span class="pill">${usage.get("estimated_cost_usd", 0):.4f}</span>'
+                f'<span class="pill">{usage.get("total_seconds", 0)}s</span>',
+                unsafe_allow_html=True,
+            )
+
         if result.get("intent_reason"):
             st.caption(result["intent_reason"])
 
@@ -422,8 +434,11 @@ def send_chat(prompt: str) -> None:
                 "query": prompt,
                 "use_rag": st.session_state.chat_use_rag,
                 "document_id": st.session_state.chat_document_id,
+                # Continues the same server-side thread so follow-ups resolve.
+                "thread_id": st.session_state.thread_id,
             },
         )
+        st.session_state.thread_id = result.get("thread_id") or st.session_state.thread_id
         st.session_state.messages.append(
             {"role": "assistant", "content": result.get("answer", ""), "result": result}
         )
@@ -476,12 +491,25 @@ def render_chat_page() -> None:
                 continue
             # Rendered as markdown so headings, lists and bold in the model's
             # output display properly instead of as literal source text.
+            if result and result.get("injection_flags"):
+                st.warning(
+                    "A retrieved document contained instructions aimed at the agent "
+                    f"({', '.join(result['injection_flags'])}). They were ignored and "
+                    "actions that send email or file tickets were blocked for this answer."
+                )
             st.markdown(message["content"])
             if result:
                 render_trace(result)
 
     if st.session_state.messages and st.button("Clear conversation"):
+        thread = st.session_state.thread_id
+        if thread:
+            try:
+                api_request(f"/api/v1/chat/{thread}", method="DELETE")
+            except Exception:
+                pass  # a stale thread should not block clearing the view
         st.session_state.messages = []
+        st.session_state.thread_id = None
         st.rerun()
 
     prompt = st.chat_input("Ask anything about your internal documents")

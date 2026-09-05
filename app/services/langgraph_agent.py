@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
+from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.schemas.chat import CandidateDocument, ChatResponse, PlannedStep, ToolCallRecord
+from app.services import guardrails, telemetry
 from app.services.internal_action_service import InternalActionService
 from app.services.langchain_factory import get_langchain_chat_model
 from app.services.report_service import ReportService
@@ -29,6 +32,8 @@ IntentType = Literal[
 class AgentState(BaseModel):
     query: str
     user_id: int | None = None
+    # Prior turns, oldest first, as {role, content}.
+    history: list[dict[str, str]] = Field(default_factory=list)
     use_rag: bool = True
     document_id: int | None = None
     intent: IntentType = "general_chat"
@@ -43,6 +48,8 @@ class AgentState(BaseModel):
     answer: str = ""
     tool_summary: str = ""
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
+    # Injection categories detected in retrieved content, if any.
+    injection_flags: list[str] = Field(default_factory=list)
 
 
 class IntentClassification(BaseModel):
@@ -61,6 +68,10 @@ class FollowUpDecision(BaseModel):
     question: str = ""
     reason: str = Field(min_length=1)
 
+
+# Tools with real-world side effects. An injected document must never be
+# able to reach these, so they are stripped when injection is detected.
+SIDE_EFFECTING_TOOLS = {"send_email", "create_ticket"}
 
 ToolName = Literal[
     "get_data",
@@ -87,6 +98,35 @@ class DocumentUnderstanding(BaseModel):
     relevant_sections: list[str] = Field(default_factory=list)
     compressed_context: str = ""
     reasoning: str = Field(min_length=1)
+
+
+# Shared with the evaluation harness (evals/run_eval.py) so the suite measures
+# the prompt that actually ships, not a copy that can drift from it.
+INTENT_SYSTEM_PROMPT = (
+    "Classify the user's request into exactly one supported intent.\n"
+    "Allowed intents: greeting, summarization, reporting, workflow, knowledge_lookup, general_chat.\n"
+    "Use these rules:\n"
+    "- greeting: a hello, thanks, or sign-off carrying no real task\n"
+    "- summarization: condense text the user has or points to - notes, minutes, a document\n"
+    "- reporting: produce a report, status update, brief, or structured business write-up\n"
+    "- workflow: take an action - notify, email, ticket, escalate, automate\n"
+    "- knowledge_lookup: answer using THIS COMPANY's own uploaded documents, policies,\n"
+    "  handbook, or internal decisions. Choose it only when the answer would live in\n"
+    "  the organisation's private material.\n"
+    "- general_chat: answering or explaining anything else - general world knowledge,\n"
+    "  definitions, technical explanations, arithmetic, conversions, quick advice.\n"
+    "  A QUESTION answerable from public knowledge is general_chat, NOT knowledge_lookup,\n"
+    "  even when it sounds technical.\n"
+    "Decide in this order:\n"
+    "1. Is the user asking for an ACTION to be taken? -> workflow\n"
+    "2. Is the user asking for a written business artefact to be produced - a report,\n"
+    "   brief, one-pager, status update, write-up, or document for an audience? ->\n"
+    "   reporting. This holds whatever the subject matter is.\n"
+    "3. Is the user asking to compress material that already exists? -> summarization\n"
+    "4. Would the answer live in this company's private documents? -> knowledge_lookup\n"
+    "5. Otherwise -> general_chat (or greeting if there is no task at all).\n"
+    "Set confidence between 0 and 1."
+)
 
 
 class LangGraphAgentService:
@@ -131,11 +171,33 @@ class LangGraphAgentService:
         last_error: Exception | None = None
         for _ in range(self.JSON_ATTEMPTS):
             try:
-                response = await self.model.ainvoke(messages)
+                with telemetry.record(schema.__name__) as capture:
+                    response = capture(await self.model.ainvoke(messages))
                 return schema.model_validate(json.loads(self._extract_json(response)))
             except Exception as exc:  # caller decides how to degrade
                 last_error = exc
         raise last_error  # type: ignore[misc]
+
+    @staticmethod
+    def _format_history(history: list[dict[str, str]]) -> str:
+        return "\n".join(f"{turn['role']}: {turn['content']}" for turn in history)
+
+    @classmethod
+    def _query_with_history(cls, state: AgentState) -> str:
+        """Prefix the query with recent turns so references can be resolved.
+
+        Without this, "summarize that" carries no referent and the classifier
+        has to guess what the user is pointing at.
+        """
+        if not state.history:
+            return f"User query:\n{state.query}"
+        return (
+            "Conversation so far (oldest first):\n"
+            f"{cls._format_history(state.history)}\n\n"
+            "Classify only the latest user query, resolving any reference it makes "
+            "to the conversation above.\n"
+            f"User query:\n{state.query}"
+        )
 
     @staticmethod
     def _extract_json(response: Any) -> str:
@@ -346,19 +408,8 @@ class LangGraphAgentService:
         try:
             result = await self._invoke_json_model(
                 IntentClassification,
-                (
-                    "Classify the user's request into exactly one supported intent.\n"
-                    "Allowed intents: greeting, summarization, reporting, workflow, knowledge_lookup, general_chat.\n"
-                    "Use these rules:\n"
-                    "- greeting: simple hello without a real task\n"
-                    "- summarization: summarize notes, text, or meeting content\n"
-                    "- reporting: create a report, status update, or structured business write-up\n"
-                    "- workflow: take actions like notify, email, ticket, escalate, automate\n"
-                    "- knowledge_lookup: answer from uploaded/internal documents, policy, handbook, or company knowledge\n"
-                    "- general_chat: everything else\n"
-                    "Set confidence between 0 and 1."
-                ),
-                f"User query:\n{state.query}",
+                INTENT_SYSTEM_PROMPT,
+                self._query_with_history(state),
             )
             return {
                 "intent": result.intent,
@@ -437,7 +488,15 @@ class LangGraphAgentService:
             f"Document: {item['file_name']}\nContent: {item['content']}"
             for item in matches
         ]
-        return {"context": context, "candidate_documents": [], "clarification_needed": False}
+        # Scan what came back before it reaches any prompt, so the trace can
+        # report it and the planner can be prevented from acting on it.
+        flags = guardrails.scan_for_injection("\n".join(context))
+        return {
+            "context": context,
+            "candidate_documents": [],
+            "clarification_needed": False,
+            "injection_flags": flags,
+        }
 
     async def _clarify_request_node(self, state: AgentState) -> dict[str, Any]:
         if state.clarification_needed:
@@ -541,18 +600,34 @@ class LangGraphAgentService:
         except Exception:
             plan = self._fallback_plan(state)
 
+        steps = (
+            [
+                PlannedStep(tool_name=step.tool_name, args=step.args, rationale=step.rationale)
+                for step in plan.steps
+            ]
+            if plan.should_execute_tools
+            else []
+        )
+        reasoning = plan.reasoning
+
+        # If the retrieved documents tried to issue instructions, drop the
+        # side-effecting tools regardless of what the planner decided. Reading
+        # data stays allowed; sending mail and filing tickets do not, because
+        # those are the steps an injected document is trying to reach.
+        if state.injection_flags and steps:
+            blocked = [s.tool_name for s in steps if s.tool_name in SIDE_EFFECTING_TOOLS]
+            if blocked:
+                steps = [s for s in steps if s.tool_name not in SIDE_EFFECTING_TOOLS]
+                reasoning = (
+                    f"{reasoning} Blocked {', '.join(sorted(set(blocked)))} because the retrieved "
+                    f"content contained possible prompt injection ({', '.join(state.injection_flags)})."
+                )
+
         return {
-            "plan": (
-                [
-                    PlannedStep(tool_name=step.tool_name, args=step.args, rationale=step.rationale)
-                    for step in plan.steps
-                ]
-                if plan.should_execute_tools
-                else []
-            ),
+            "plan": steps,
             "intent_reason": state.intent_reason
-            if not plan.reasoning
-            else f"{state.intent_reason} Planner: {plan.reasoning}",
+            if not reasoning
+            else f"{state.intent_reason} Planner: {reasoning}",
         }
 
     async def _execute_tool_step(self, state: AgentState, step: PlannedStep) -> ToolCallRecord:
@@ -573,7 +648,15 @@ class LangGraphAgentService:
                 priority = str(step.args.get("priority") or "high")
                 return self.action_service.create_ticket(db, owner, team, issue, priority)
             if step.tool_name == "send_email":
-                recipient = str(step.args.get("recipient") or "ops@example.com")
+                # Validated against addresses the user actually supplied, so a
+                # recipient injected through document content is refused even
+                # if the planner was talked into proposing it.
+                recipient = guardrails.validate_email_recipient(
+                    str(step.args.get("recipient") or ""),
+                    user_query=state.query,
+                    history=state.history,
+                    default_recipient=get_settings().default_notification_email,
+                )
                 subject = str(step.args.get("subject") or "Internal agent workflow update")
                 body = str(step.args.get("body") or f"Workflow request processed: {state.query}")
                 return self.action_service.send_email(db, owner, recipient, subject, body)
@@ -625,10 +708,14 @@ class LangGraphAgentService:
         if state.answer and state.clarification_needed:
             return {}
 
-        context_block = state.document_brief or (
-            "\n\n".join(state.context) if state.context else "No internal context retrieved."
-        )
-        human = (
+        raw_context = state.document_brief or ("\n\n".join(state.context) if state.context else "")
+        # Retrieved text is delimited and labelled so the model can tell
+        # document data from instructions addressed to it.
+        context_block = guardrails.wrap_untrusted(raw_context)
+        human = ""
+        if state.history:
+            human += f"Conversation so far (oldest first):\n{self._format_history(state.history)}\n\n"
+        human += (
             f"User query:\n{state.query}\n\n"
             f"Retrieved context:\n{context_block}\n\n"
         )
@@ -641,9 +728,15 @@ class LangGraphAgentService:
 
         # Messages are sent directly: the query and retrieved context are data,
         # and a ChatPromptTemplate would try to interpret braces in them.
-        response = await self.model.ainvoke(
-            [SystemMessage(content=self._system_prompt(state.intent)), HumanMessage(content=human)]
-        )
+        with telemetry.record("respond") as capture:
+            response = capture(
+                await self.model.ainvoke(
+                    [
+                        SystemMessage(content=self._system_prompt(state.intent)),
+                        HumanMessage(content=human),
+                    ]
+                )
+            )
         return {"answer": getattr(response, "content", str(response))}
 
     @staticmethod
@@ -723,14 +816,26 @@ class LangGraphAgentService:
         use_rag: bool = True,
         user_id: int | None = None,
         document_id: int | None = None,
+        history: list[dict[str, str]] | None = None,
     ) -> ChatResponse:
-        result = await self.graph.ainvoke(
-            AgentState(query=query, use_rag=use_rag, user_id=user_id, document_id=document_id)
-        )
+        started = time.perf_counter()
+        with telemetry.collect(model=get_settings().llm_model) as metrics:
+            result = await self.graph.ainvoke(
+                AgentState(
+                    query=query,
+                    use_rag=use_rag,
+                    user_id=user_id,
+                    document_id=document_id,
+                    history=history or [],
+                )
+            )
         if isinstance(result, AgentState):
             state = result
         else:
             state = AgentState.model_validate(result)
+
+        usage = metrics.as_dict()
+        usage["total_seconds"] = round(time.perf_counter() - started, 3)
 
         return ChatResponse(
             intent=state.intent,
@@ -742,4 +847,6 @@ class LangGraphAgentService:
             context=state.context,
             plan=state.plan,
             tool_calls=state.tool_calls,
+            injection_flags=state.injection_flags,
+            usage=usage,
         )

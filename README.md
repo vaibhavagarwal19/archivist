@@ -4,6 +4,8 @@ An internal-knowledge assistant built as a **stateful LangGraph agent** rather t
 
 FastAPI backend · LangGraph orchestration · FAISS retrieval · JWT auth · Streamlit operator UI.
 
+**Measured, not asserted:** an evaluation harness scores the intent router against the keyword baseline it falls back to — currently **96.3% vs 37.0%** over 54 labelled cases — and retrieval at **100% hit@4 / 0.93 MRR**. See [evals/](evals/).
+
 ```bash
 git clone https://github.com/vaibhavagarwal19/internalaiagents.git
 cd internalaiagents
@@ -64,6 +66,9 @@ Most "chat with your docs" projects are one prompt and one retrieval call. This 
 - **Every LLM decision has a deterministic fallback.** Intent classification, the retrieval decision, and tool planning each ask the model for structured JSON — and each falls back to keyword heuristics when the model is unavailable or returns unparseable output. The agent degrades instead of failing. These fallbacks are pure functions and are covered by tests that never touch the network.
 - **It asks instead of guessing.** When a request says "summarize the uploaded document" and several documents match, `clarify_request` returns the candidate list and asks which one, rather than silently picking the highest-scoring chunk.
 - **Retrieval is scoped per user.** Chunks carry `owner_id` metadata and results are filtered to the caller, so one account's documents can never surface in another's answers.
+- **Retrieved documents are treated as untrusted input.** Document text reaches a planner that can send email and file tickets, so it is delimited and labelled as data, scanned for injection phrasing, and — if flagged — the side-effecting tools are stripped from the plan. Email recipients are validated against addresses the *user* supplied, so an address that appears only inside a document is never contacted. Verified against a live poisoned document.
+- **Conversations have memory.** Turns are persisted per user and thread, so "and who owns that?" resolves against what was actually said.
+- **Every request is costed.** Token counts, an estimated price, and per-step latency are captured across all model calls in a request and surfaced in the UI.
 - **The reasoning is visible.** Responses include the detected intent, confidence, the planner's stated reasoning, the planned tool steps, the retrieved context, and the executed calls. The Streamlit UI renders all of it, which makes the agent debuggable rather than a black box.
 
 ## 2. Architecture
@@ -88,7 +93,8 @@ Most "chat with your docs" projects are one prompt and one retrieval call. This 
 | `POST` | `/api/v1/auth/register` | Create an account |
 | `POST` | `/api/v1/auth/login` | Exchange credentials for a JWT |
 | `GET` | `/api/v1/auth/me` | Current user |
-| `POST` | `/api/v1/chat` | Ask the agent |
+| `POST` | `/api/v1/chat` | Ask the agent (pass `thread_id` to continue a conversation) |
+| `DELETE` | `/api/v1/chat/{thread_id}` | Forget a conversation |
 | `POST` | `/api/v1/generate-report` | Generate and store a report |
 | `POST` | `/api/v1/summarize` | Summarize meeting notes |
 | `POST` | `/api/v1/upload-doc` | Upload a text document for retrieval |
@@ -127,7 +133,8 @@ Redis and Celery are optional. `ENABLE_BACKGROUND_TASKS` defaults to `false`; up
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                                    # 81 tests, ~8s, no network
+pytest                                    # 124 tests, ~12s, no network
+python -m evals.run_eval                  # routing + retrieval scores
 ruff check app frontend scripts tests
 alembic upgrade head                      # apply migrations
 alembic revision --autogenerate -m "..."  # after changing a model
@@ -152,6 +159,9 @@ Stated plainly, because they are deliberate scope choices rather than oversights
 - **Only text-like uploads are handled properly.** Files are decoded as UTF-8 with errors ignored, so a PDF or `.docx` will be accepted and indexed as garbage rather than rejected.
 - **FAISS is single-node.** Fine for one container; a horizontally scaled deployment wants pgvector or a managed vector database.
 - **No refresh tokens or RBAC.** Access tokens expire in an hour and every account has identical permissions.
+- **Injection detection is pattern-based.** It catches the common phrasings and is backed by
+  recipient validation that does not depend on detection working, but a novel phrasing could
+  still slip past the scanner. The enforcement layer is the one to rely on.
 
 ## 8. Project layout
 
@@ -163,8 +173,9 @@ app/
 ├── db/             Engine, session, startup checks
 ├── models/         SQLAlchemy ORM models
 ├── schemas/        Pydantic request/response contracts
-├── services/       Agent, retrieval, documents, reports, summaries
+├── services/       Agent, retrieval, guardrails, telemetry, conversations
 └── tasks/          Optional Celery jobs
+evals/              Labelled datasets + scoring harness
 alembic/            Migrations
 frontend/           Streamlit UI
 samples/            Example documents to upload

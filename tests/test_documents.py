@@ -115,25 +115,34 @@ class TestChunking:
 
 
 class TestRetrievalScoping:
-    """search_chunks must filter results by owner before returning them."""
+    """Filtering must happen inside the search, not after it.
 
-    def _service_with_results(self, monkeypatch, docs):
+    Regression: search_chunks used to fetch the global top-N by similarity and
+    then discard other users' chunks. A user whose documents fell outside that
+    global window received zero results even when they had relevant material.
+    """
+
+    def _service_with_store(self, monkeypatch, docs):
         monkeypatch.setattr(VectorStoreService, "__init__", lambda self: None)
         service = VectorStoreService()
+        captured = {}
 
         class FakeStore:
-            def similarity_search_with_score(self, query, k):
-                return [(d, 0.1) for d in docs]
+            def similarity_search_with_score(self, query, k, filter=None, fetch_k=None):
+                captured["k"] = k
+                captured["fetch_k"] = fetch_k
+                kept = [d for d in docs if filter is None or filter(d.metadata)]
+                return [(d, 0.1) for d in kept[:k]]
 
         monkeypatch.setattr(VectorStoreService, "_load_store", lambda self: FakeStore())
-        return service
+        return service, captured
 
     def test_results_are_filtered_to_the_requesting_owner(self, monkeypatch):
         docs = [
             LCDocument(page_content="mine", metadata={"owner_id": 1, "document_id": 10, "file_name": "a.txt"}),
             LCDocument(page_content="theirs", metadata={"owner_id": 2, "document_id": 20, "file_name": "b.txt"}),
         ]
-        service = self._service_with_results(monkeypatch, docs)
+        service, _ = self._service_with_store(monkeypatch, docs)
         results = service.search_chunks("anything", k=4, owner_id=1)
         assert [r["content"] for r in results] == ["mine"]
 
@@ -142,9 +151,26 @@ class TestRetrievalScoping:
             LCDocument(page_content="first", metadata={"owner_id": 1, "document_id": 10, "file_name": "a.txt"}),
             LCDocument(page_content="second", metadata={"owner_id": 1, "document_id": 11, "file_name": "b.txt"}),
         ]
-        service = self._service_with_results(monkeypatch, docs)
+        service, _ = self._service_with_store(monkeypatch, docs)
         results = service.search_chunks("anything", k=4, owner_id=1, document_id=11)
         assert [r["content"] for r in results] == ["second"]
+
+    def test_owner_results_survive_a_crowded_global_ranking(self, monkeypatch):
+        """The original bug: 60 higher-scoring foreign chunks ahead of ours."""
+        docs = [
+            LCDocument(page_content=f"other-{i}", metadata={"owner_id": 2, "document_id": i, "file_name": "x.txt"})
+            for i in range(60)
+        ] + [
+            LCDocument(page_content="mine", metadata={"owner_id": 1, "document_id": 99, "file_name": "mine.txt"})
+        ]
+        service, _ = self._service_with_store(monkeypatch, docs)
+        results = service.search_chunks("anything", k=4, owner_id=1)
+        assert [r["content"] for r in results] == ["mine"], "owner filter must run inside the search"
+
+    def test_candidate_pool_is_widened_beyond_k(self, monkeypatch):
+        service, captured = self._service_with_store(monkeypatch, [])
+        service.search_chunks("anything", k=4, owner_id=1)
+        assert captured["fetch_k"] >= 100, "fetch_k must widen the pool the filter sees"
 
     def test_missing_index_returns_no_results(self, monkeypatch):
         monkeypatch.setattr(VectorStoreService, "__init__", lambda self: None)
@@ -235,3 +261,36 @@ class TestDeletion:
         monkeypatch.setattr(VectorStoreService, "__init__", lambda self: None)
         monkeypatch.setattr(VectorStoreService, "_load_store", lambda self: None)
         assert VectorStoreService().delete_document(1) == 0
+
+
+class TestSentenceAwareChunking:
+    """Chunks should end on sentence boundaries, not mid-word."""
+
+    def test_chunks_do_not_split_mid_sentence(self):
+        text = " ".join(f"Sentence number {i} carries a complete thought." for i in range(60))
+        for chunk in chunk_text(text, chunk_size=200, overlap=50):
+            assert chunk.endswith("."), f"chunk ended mid-sentence: {chunk[-40:]!r}"
+
+    def test_overlap_repeats_whole_sentences(self):
+        text = " ".join(f"Fact {i} is recorded here." for i in range(40))
+        chunks = chunk_text(text, chunk_size=150, overlap=60)
+        assert len(chunks) > 1
+        # The tail of one chunk should reappear at the head of the next.
+        first_tail = chunks[0].split(". ")[-1].strip(". ")
+        assert first_tail in chunks[1]
+
+    def test_paragraphs_are_respected(self):
+        text = "First para sentence one. First para sentence two.\n\nSecond para here."
+        chunks = chunk_text(text, chunk_size=1000)
+        assert len(chunks) == 1
+        assert "Second para here." in chunks[0]
+
+    def test_a_sentence_longer_than_the_chunk_is_hard_split(self):
+        text = "x" * 2500
+        chunks = chunk_text(text, chunk_size=500, overlap=50)
+        assert all(len(c) <= 500 for c in chunks)
+        assert "".join(chunks).count("x") >= 2500
+
+    def test_empty_and_whitespace_text(self):
+        assert chunk_text("") == []
+        assert chunk_text("   \n\t ") == []

@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     # Celery/Redis is optional; uploads work without it.
     enable_background_tasks: bool = False
+    # The only address the agent may contact when the user names none.
+    default_notification_email: str = ""
     faiss_index_path: str = str(BASE_DIR / "storage" / "faiss" / "index")
     upload_dir: str = str(BASE_DIR / "storage" / "uploads")
     # Hosts with an ephemeral filesystem lose the FAISS index on every restart.

@@ -1,0 +1,54 @@
+{"id": "greet-01", "query": "hello", "intent": "greeting"}
+{"id": "greet-02", "query": "hi there", "intent": "greeting"}
+{"id": "greet-03", "query": "good morning", "intent": "greeting"}
+{"id": "greet-04", "query": "hey, how are you doing today?", "intent": "greeting"}
+{"id": "greet-05", "query": "morning! anything for me today?", "intent": "greeting"}
+{"id": "greet-06", "query": "thanks, that's all for now", "intent": "greeting"}
+{"id": "sum-01", "query": "Summarize the meeting notes from Tuesday", "intent": "summarization"}
+{"id": "sum-02", "query": "Give me a summary of the strategy notes", "intent": "summarization"}
+{"id": "sum-03", "query": "Condense these minutes into decisions and owners", "intent": "summarization"}
+{"id": "sum-04", "query": "TL;DR of the ops retro please", "intent": "summarization"}
+{"id": "sum-05", "query": "Pull the key takeaways out of the planning doc", "intent": "summarization"}
+{"id": "sum-06", "query": "Boil the quarterly review down to five bullets", "intent": "summarization"}
+{"id": "sum-07", "query": "What were the decisions and action items from the sync?", "intent": "summarization"}
+{"id": "sum-08", "query": "Shorten the incident writeup for the leadership channel", "intent": "summarization"}
+{"id": "sum-09", "query": "Turn my raw notes into a clean recap", "intent": "summarization"}
+{"id": "rep-01", "query": "Generate a weekly operations report", "intent": "reporting"}
+{"id": "rep-02", "query": "Create a status update for leadership on hiring", "intent": "reporting"}
+{"id": "rep-03", "query": "I need a report on payroll risk for the board", "intent": "reporting"}
+{"id": "rep-04", "query": "Put together a written brief on vendor delays", "intent": "reporting"}
+{"id": "rep-05", "query": "Draft something formal I can send to the exec team about Q3 delivery", "intent": "reporting"}
+{"id": "rep-06", "query": "Write up the quarterly business review document", "intent": "reporting"}
+{"id": "rep-07", "query": "Compose a one-pager on our current reliability posture", "intent": "reporting"}
+{"id": "rep-08", "query": "Prepare a written summary document for the finance review", "intent": "reporting"}
+{"id": "rep-09", "query": "Build me a structured writeup covering this quarter's blockers", "intent": "reporting"}
+{"id": "wf-01", "query": "Create a ticket for the payroll sync failure", "intent": "workflow"}
+{"id": "wf-02", "query": "Notify the ops team about the outage", "intent": "workflow"}
+{"id": "wf-03", "query": "Escalate this incident to finance", "intent": "workflow"}
+{"id": "wf-04", "query": "Email ops@example.com with a status update", "intent": "workflow"}
+{"id": "wf-05", "query": "Open a high priority issue for the integration team", "intent": "workflow"}
+{"id": "wf-06", "query": "Let the payroll owner know we're seeing failures", "intent": "workflow"}
+{"id": "wf-07", "query": "Please raise this with the on-call engineer", "intent": "workflow"}
+{"id": "wf-08", "query": "Investigate the sync failure and tell stakeholders what happened", "intent": "workflow"}
+{"id": "wf-09", "query": "File this under the operations queue and loop in finance", "intent": "workflow"}
+{"id": "wf-10", "query": "Kick off the incident process for this", "intent": "workflow"}
+{"id": "kb-01", "query": "What does the ops playbook say about payroll sync?", "intent": "knowledge_lookup"}
+{"id": "kb-02", "query": "What is our leave policy?", "intent": "knowledge_lookup"}
+{"id": "kb-03", "query": "According to the handbook, how do I request time off?", "intent": "knowledge_lookup"}
+{"id": "kb-04", "query": "How long do we have to acknowledge a Sev-1?", "intent": "knowledge_lookup"}
+{"id": "kb-05", "query": "Who gets paged when payments are at risk?", "intent": "knowledge_lookup"}
+{"id": "kb-06", "query": "Find the escalation path for integration failures", "intent": "knowledge_lookup"}
+{"id": "kb-07", "query": "Look up what we agreed about contractor spend", "intent": "knowledge_lookup"}
+{"id": "kb-08", "query": "Is there anything in our internal docs about vendor contracts?", "intent": "knowledge_lookup"}
+{"id": "kb-09", "query": "Remind me of the benefits enrollment deadline", "intent": "knowledge_lookup"}
+{"id": "kb-10", "query": "Where in the playbook is the diagnostics checklist?", "intent": "knowledge_lookup"}
+{"id": "kb-11", "query": "Which roles are we prioritising for hiring this quarter?", "intent": "knowledge_lookup"}
+{"id": "kb-12", "query": "Tell me our stated SLA for tier two incidents", "intent": "knowledge_lookup"}
+{"id": "gen-01", "query": "What is the capital of France?", "intent": "general_chat"}
+{"id": "gen-02", "query": "Explain the difference between a queue and a stack", "intent": "general_chat"}
+{"id": "gen-03", "query": "Can you help me phrase this more politely?", "intent": "general_chat"}
+{"id": "gen-04", "query": "What time zone is UTC+5:30?", "intent": "general_chat"}
+{"id": "gen-05", "query": "Give me three ideas for a team offsite", "intent": "general_chat"}
+{"id": "gen-06", "query": "How does vector search actually work?", "intent": "general_chat"}
+{"id": "gen-07", "query": "What's a good subject line for a cold email?", "intent": "general_chat"}
+{"id": "gen-08", "query": "Convert 250 USD to INR roughly", "intent": "general_chat"}

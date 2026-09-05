@@ -10,7 +10,13 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
 from app.db.base import Base
-from app.models import document, report, user, workflow_action  # noqa: F401
+from app.models import (  # noqa: F401
+    conversation,
+    document,
+    report,
+    user,
+    workflow_action,
+)
 
 config = context.config
 

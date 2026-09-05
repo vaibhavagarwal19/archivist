@@ -22,7 +22,7 @@ def init_db() -> None:
     Path(settings.faiss_index_path).parent.mkdir(parents=True, exist_ok=True)
 
     tables = set(inspect(engine).get_table_names())
-    expected = {"users", "documents", "reports", "workflow_actions"}
+    expected = {"users", "documents", "reports", "workflow_actions", "conversation_messages"}
     missing = expected - tables
 
     if missing:

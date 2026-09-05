@@ -117,26 +117,27 @@ class VectorStoreService:
         if store is None:
             return []
 
-        raw_results = store.similarity_search_with_score(query, k=max(k * 3, 8))
-        results = [
-            {"document": doc, "score": score}
-            for doc, score in raw_results
-        ]
+        # Filtering has to happen inside the search, not after it. Fetching the
+        # global top-N and then discarding other users' chunks returned nothing
+        # whenever a caller's documents fell outside that global window - so a
+        # user with relevant documents could get zero results purely because
+        # other tenants' chunks scored higher.
+        def matches(metadata: dict) -> bool:
+            if owner_id is not None and str(metadata.get("owner_id", "")) != str(owner_id):
+                return False
+            if document_id is not None and str(metadata.get("document_id", "")) != str(document_id):
+                return False
+            return True
 
-        if owner_id is not None:
-            results = [
-                item
-                for item in results
-                if str(item["document"].metadata.get("owner_id", "")) == str(owner_id)
-            ]
-        if document_id is not None:
-            results = [
-                item
-                for item in results
-                if str(item["document"].metadata.get("document_id", "")) == str(document_id)
-            ]
-
-        trimmed = results[:k]
+        raw_results = store.similarity_search_with_score(
+            query,
+            k=k,
+            filter=matches,
+            # Widen the candidate pool the filter is applied to; without this
+            # FAISS still only considers its own small default window.
+            fetch_k=max(k * 25, 100),
+        )
+        trimmed = [{"document": doc, "score": score} for doc, score in raw_results][:k]
         return [
             {
                 "document_id": int(item["document"].metadata.get("document_id", 0) or 0),

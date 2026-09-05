@@ -5,6 +5,8 @@ class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1)
     use_rag: bool = True
     document_id: int | None = None
+    # Continues an existing conversation; omit to start a new one.
+    thread_id: str | None = None
 
 
 class CandidateDocument(BaseModel):
@@ -26,6 +28,7 @@ class PlannedStep(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    thread_id: str = ""
     intent: str
     confidence: float = 0.0
     intent_reason: str = ""
@@ -35,3 +38,7 @@ class ChatResponse(BaseModel):
     context: list[str] = Field(default_factory=list)
     plan: list[PlannedStep] = Field(default_factory=list)
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
+    # Prompt-injection categories detected in retrieved content.
+    injection_flags: list[str] = Field(default_factory=list)
+    # Token, cost and latency breakdown for this request.
+    usage: dict = Field(default_factory=dict)

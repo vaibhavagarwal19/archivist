@@ -1,0 +1,15 @@
+{"id": "ret-01", "query": "How do employees request leave?", "expected_documents": ["benefits_notes.txt", "sample_strategy_notes.txt"]}
+{"id": "ret-02", "query": "How far in advance must benefits changes be communicated before enrollment windows?", "expected_documents": ["sample_strategy_notes.txt"]}
+{"id": "ret-03", "query": "How quickly must a payroll sync incident be triaged?", "expected_documents": ["sample_ops_playbook.txt"]}
+{"id": "ret-04", "query": "What should the first responder check on the integration dashboard?", "expected_documents": ["sample_ops_playbook.txt"]}
+{"id": "ret-05", "query": "Who is notified when failures repeat for more than ten minutes?", "expected_documents": ["sample_ops_playbook.txt"]}
+{"id": "ret-06", "query": "When should a Sev-1 incident ticket be created?", "expected_documents": ["sample_ops_playbook.txt"]}
+{"id": "ret-07", "query": "What must a stakeholder update email contain?", "expected_documents": ["sample_ops_playbook.txt", "sample_strategy_notes.txt"]}
+{"id": "ret-08", "query": "Which roles is the talent acquisition team prioritising?", "expected_documents": ["sample_strategy_notes.txt"]}
+{"id": "ret-09", "query": "What did finance decide about the revised hiring timeline?", "expected_documents": ["sample_strategy_notes.txt", "sample_ops_playbook.txt"]}
+{"id": "ret-10", "query": "What did legal request about vendor contract amendments?", "expected_documents": ["sample_strategy_notes.txt"]}
+{"id": "ret-11", "query": "What are the recommended next steps for leadership?", "expected_documents": ["sample_strategy_notes.txt"]}
+{"id": "ret-12", "query": "What happens to non-critical backfills if vendor costs rise?", "expected_documents": ["sample_strategy_notes.txt"]}
+{"id": "ret-13", "query": "Why has onboarding slowed for engineering roles?", "expected_documents": ["sample_ops_playbook.txt"]}
+{"id": "ret-14", "query": "What three items should the weekly operating review highlight?", "expected_documents": ["sample_ops_playbook.txt"]}
+{"id": "ret-15", "query": "How are high-priority medical claim exceptions handled?", "expected_documents": ["sample_strategy_notes.txt", "benefits_notes.txt"]}
