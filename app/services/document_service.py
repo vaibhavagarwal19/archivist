@@ -78,7 +78,7 @@ class DocumentService:
 
         try:
             self.vector_store.delete_document(document_id)
-        except Exception as exc:  # noqa: BLE001 - index cleanup must not block deletion
+        except Exception as exc:  # index cleanup must not block deletion
             logger.warning("Could not remove vectors for document %s: %s", document_id, exc)
 
         file_path = Path(document.file_path)

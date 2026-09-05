@@ -133,7 +133,7 @@ class LangGraphAgentService:
             try:
                 response = await self.model.ainvoke(messages)
                 return schema.model_validate(json.loads(self._extract_json(response)))
-            except Exception as exc:  # noqa: BLE001 - caller decides how to degrade
+            except Exception as exc:  # caller decides how to degrade
                 last_error = exc
         raise last_error  # type: ignore[misc]
 
@@ -647,10 +647,6 @@ class LangGraphAgentService:
         return {"answer": getattr(response, "content", str(response))}
 
     @staticmethod
-    def _route_after_intent(state: AgentState) -> str:
-        return "plan_retrieval"
-
-    @staticmethod
     def _route_after_retrieval(state: AgentState) -> str:
         if state.clarification_needed:
             return "respond"
@@ -662,10 +658,6 @@ class LangGraphAgentService:
             return "respond"
         if state.intent in {"summarization", "reporting"}:
             return "understand_document"
-        return "plan_actions"
-
-    @staticmethod
-    def _route_after_understanding(_: AgentState) -> str:
         return "plan_actions"
 
     @staticmethod
@@ -686,13 +678,7 @@ class LangGraphAgentService:
         graph.add_node("respond", self._respond_node)
 
         graph.set_entry_point("detect_intent")
-        graph.add_conditional_edges(
-            "detect_intent",
-            self._route_after_intent,
-            {
-                "plan_retrieval": "plan_retrieval",
-            },
-        )
+        graph.add_edge("detect_intent", "plan_retrieval")
         graph.add_conditional_edges(
             "plan_retrieval",
             lambda state: "retrieve" if state.should_retrieve else "plan_actions",
@@ -718,13 +704,7 @@ class LangGraphAgentService:
                 "plan_actions": "plan_actions",
             },
         )
-        graph.add_conditional_edges(
-            "understand_document",
-            self._route_after_understanding,
-            {
-                "plan_actions": "plan_actions",
-            },
-        )
+        graph.add_edge("understand_document", "plan_actions")
         graph.add_conditional_edges(
             "plan_actions",
             self._route_after_action_plan,

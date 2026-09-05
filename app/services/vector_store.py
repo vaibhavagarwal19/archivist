@@ -147,18 +147,3 @@ class VectorStoreService:
             for item in trimmed
         ]
 
-    def similarity_search(
-        self,
-        query: str,
-        k: int = 4,
-        owner_id: int | None = None,
-        document_id: int | None = None,
-    ) -> list[str]:
-        trimmed = self.search_chunks(query, k=k, owner_id=owner_id, document_id=document_id)
-        return [
-            (
-                f"Document: {item['file_name']}\n"
-                f"Content: {item['content']}"
-            )
-            for item in trimmed
-        ]
