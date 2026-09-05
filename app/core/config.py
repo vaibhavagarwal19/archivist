@@ -22,7 +22,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("GROQ_API_KEY", "MISTRAL_API_KEY", "LLM_API_KEY"),
     )
     llm_base_url: str = "https://api.groq.com/openai/v1"
-    llm_model: str = "llama-3.1-8b-instant"
+    llm_model: str = "openai/gpt-oss-120b"
     llm_timeout_seconds: int = 120
 
     # Embeddings are configured independently of the chat model: Groq serves no

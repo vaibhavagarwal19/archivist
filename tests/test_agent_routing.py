@@ -5,8 +5,11 @@ every one of those decisions has a deterministic fallback for when the model
 is unavailable or returns unparseable output. Those fallbacks are pure
 functions, so they are tested here without touching the network.
 """
+import inspect
+
 import pytest
 
+from app.schemas.chat import PlannedStep
 from app.services.langgraph_agent import AgentState, LangGraphAgentService
 
 heuristic_intent = LangGraphAgentService._heuristic_intent
@@ -131,3 +134,44 @@ def test_fallback_falls_back_to_context_then_query():
 
     bare = AgentState(query="summarize this text", intent="summarization")
     assert fallback_plan(bare).steps[0].args["meeting_notes"] == "summarize this text"
+
+
+class TestResponseComposition:
+    """Tool execution must feed the response node, not terminate the graph.
+
+    Regression: _execute_actions_node used to write a bullet list of raw tool
+    output straight into `answer` and end the run, so any request that touched
+    a tool returned "Executed 1 planned workflow step(s)." and threw away the
+    retrieved context.
+    """
+
+    def test_executed_tools_do_not_short_circuit_the_answer(self, monkeypatch):
+        import asyncio
+
+        from app.schemas.chat import ToolCallRecord
+        from app.services.langgraph_agent import LangGraphAgentService
+
+        service = LangGraphAgentService.__new__(LangGraphAgentService)
+
+        async def fake_step(self, state, step):
+            return ToolCallRecord(name=step.tool_name, args={}, output="Ticket #7 created.")
+
+        monkeypatch.setattr(LangGraphAgentService, "_execute_tool_step", fake_step)
+
+        state = AgentState(
+            query="open a ticket",
+            intent="workflow",
+            plan=[PlannedStep(tool_name="create_ticket", args={}, rationale="because")],
+        )
+        result = asyncio.run(LangGraphAgentService._execute_actions_node(service, state))
+
+        assert "answer" not in result, "execute_actions must leave the reply to the response node"
+        assert "Ticket #7 created." in result["tool_summary"]
+        assert [call.name for call in result["tool_calls"]] == ["create_ticket"]
+
+    def test_graph_routes_executed_actions_into_respond(self):
+        from app.services.langgraph_agent import LangGraphAgentService
+
+        source = inspect.getsource(LangGraphAgentService._build_graph)
+        assert 'graph.add_edge("execute_actions", "respond")' in source
+        assert 'graph.add_edge("execute_actions", END)' not in source

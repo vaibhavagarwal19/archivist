@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
@@ -41,6 +41,7 @@ class AgentState(BaseModel):
     document_brief: str = ""
     plan: list[PlannedStep] = Field(default_factory=list)
     answer: str = ""
+    tool_summary: str = ""
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
 
 
@@ -89,6 +90,9 @@ class DocumentUnderstanding(BaseModel):
 
 
 class LangGraphAgentService:
+    # Attempts per structured call before falling back to heuristics.
+    JSON_ATTEMPTS = 2
+
     def __init__(self) -> None:
         self.model = get_langchain_chat_model(temperature=0)
         self.vector_store = VectorStoreService()
@@ -103,20 +107,39 @@ class LangGraphAgentService:
         system_prompt: str,
         user_prompt: str,
     ) -> BaseModel:
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    (
-                        f"{system_prompt}\n\n"
-                        "Return valid JSON only. Do not add markdown fences, commentary, or any extra text."
-                    ),
-                ),
-                ("human", user_prompt),
-            ]
+        # The expected shape is derived from the pydantic model and sent with the
+        # request. Describing the task alone is not enough: models will happily
+        # return a well-formed object that omits required fields (gpt-oss replies
+        # to the intent prompt with just {"intent": "greeting"}), which fails
+        # validation and silently drops the agent onto its keyword fallback.
+        schema_block = json.dumps(schema.model_json_schema(), indent=2)
+        system = (
+            f"{system_prompt}\n\n"
+            "Return a single JSON object matching this JSON Schema:\n"
+            f"{schema_block}\n\n"
+            'Every property listed under "required" must be present. '
+            "Return valid JSON only. Do not add markdown fences, commentary, or any extra text."
         )
-        chain = prompt | self.model
-        response = await chain.ainvoke({})
+        # Messages are passed directly rather than through ChatPromptTemplate,
+        # which treats braces as template variables. That would break on both
+        # the schema above and on any user query containing a brace.
+        messages = [SystemMessage(content=system), HumanMessage(content=user_prompt)]
+
+        # Structured decoding fails intermittently on some hosted models, and
+        # every failure here silently downgrades the agent to its keyword
+        # heuristics. One retry recovers most of them before that happens.
+        last_error: Exception | None = None
+        for _ in range(self.JSON_ATTEMPTS):
+            try:
+                response = await self.model.ainvoke(messages)
+                return schema.model_validate(json.loads(self._extract_json(response)))
+            except Exception as exc:  # noqa: BLE001 - caller decides how to degrade
+                last_error = exc
+        raise last_error  # type: ignore[misc]
+
+    @staticmethod
+    def _extract_json(response: Any) -> str:
+        """Pull the JSON object out of a model reply, tolerating code fences."""
         content = getattr(response, "content", str(response)).strip()
         if content.startswith("```"):
             content = content.strip("`")
@@ -128,8 +151,8 @@ class LangGraphAgentService:
         start = content.find("{")
         end = content.rfind("}")
         if start == -1 or end == -1 or end <= start:
-            raise ValueError(f"Model did not return JSON: {content}")
-        return schema.model_validate(json.loads(content[start : end + 1]))
+            raise ValueError(f"Model did not return JSON: {content[:200]}")
+        return content[start : end + 1]
 
     @staticmethod
     def _heuristic_intent(query: str) -> IntentType:
@@ -587,31 +610,40 @@ class LangGraphAgentService:
             except Exception as exc:
                 execution_errors.append(f"{step.tool_name}: {exc}")
 
-        answer_lines = [f"Executed {len(tool_calls)} planned workflow step(s)."]
-        answer_lines.extend(f"- {record.output}" for record in tool_calls)
+        summary_lines = [f"{record.name}: {record.output}" for record in tool_calls]
         if execution_errors:
-            answer_lines.append("Some planned steps could not be completed:")
-            answer_lines.extend(f"- {message}" for message in execution_errors)
+            summary_lines.append("Steps that could not be completed:")
+            summary_lines.extend(f"- {message}" for message in execution_errors)
 
-        return {"tool_calls": tool_calls, "answer": "\n".join(answer_lines)}
+        # The outcome is recorded separately from `answer` so the response node
+        # can write the reply. Setting `answer` here used to end the graph, which
+        # meant any request that ran a tool returned a bullet list of raw tool
+        # output - and discarded the retrieved context entirely.
+        return {"tool_calls": tool_calls, "tool_summary": "\n".join(summary_lines)}
 
     async def _respond_node(self, state: AgentState) -> dict[str, Any]:
-        if state.answer and (state.intent == "workflow" or state.clarification_needed):
+        if state.answer and state.clarification_needed:
             return {}
 
-        context_block = state.document_brief or ("\n\n".join(state.context) if state.context else "No internal context retrieved.")
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", self._system_prompt(state.intent)),
-                (
-                    "human",
-                    "User query:\n{query}\n\nRetrieved context:\n{context}\n\n"
-                    "Answer the user directly. Do not invent tool actions that were not executed.",
-                ),
-            ]
+        context_block = state.document_brief or (
+            "\n\n".join(state.context) if state.context else "No internal context retrieved."
         )
-        chain = prompt | self.model
-        response = await chain.ainvoke({"query": state.query, "context": context_block})
+        human = (
+            f"User query:\n{state.query}\n\n"
+            f"Retrieved context:\n{context_block}\n\n"
+        )
+        if state.tool_summary:
+            human += (
+                "Actions already carried out on the user's behalf (report these as done, "
+                f"and do not claim anything beyond them):\n{state.tool_summary}\n\n"
+            )
+        human += "Answer the user directly. Do not invent tool actions that were not executed."
+
+        # Messages are sent directly: the query and retrieved context are data,
+        # and a ChatPromptTemplate would try to interpret braces in them.
+        response = await self.model.ainvoke(
+            [SystemMessage(content=self._system_prompt(state.intent)), HumanMessage(content=human)]
+        )
         return {"answer": getattr(response, "content", str(response))}
 
     @staticmethod
@@ -701,7 +733,7 @@ class LangGraphAgentService:
                 "respond": "respond",
             },
         )
-        graph.add_edge("execute_actions", END)
+        graph.add_edge("execute_actions", "respond")
         graph.add_edge("respond", END)
         return graph.compile()
 

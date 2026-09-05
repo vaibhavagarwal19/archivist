@@ -72,7 +72,7 @@ Most "chat with your docs" projects are one prompt and one retrieval call. This 
 |---|---|---|
 | API | FastAPI | Async, typed, generates OpenAPI docs for free |
 | Agent | LangGraph | Explicit state machine beats an opaque agent loop for debuggability |
-| Chat model | Groq (`llama-3.1-8b-instant`) | Fast inference, generous free tier |
+| Chat model | Groq (`openai/gpt-oss-120b`) | Fast inference, generous free tier. Groq retired the Llama 3.1 chat models; check `/v1/models` for what your key can use |
 | Embeddings | fastembed (`bge-small-en-v1.5`) | Runs in-process: no API key, no network, no separate service |
 | Vector store | FAISS | Rebuildable from Postgres, so the index is never the source of truth |
 | Persistence | SQLAlchemy + Alembic | Versioned schema; SQLite locally, Postgres deployed |

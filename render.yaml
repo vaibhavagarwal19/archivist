@@ -35,7 +35,7 @@ services:
       - key: LLM_BASE_URL
         value: https://api.groq.com/openai/v1
       - key: LLM_MODEL
-        value: llama-3.1-8b-instant
+        value: openai/gpt-oss-120b
       - key: EMBEDDING_PROVIDER
         value: fastembed
       - key: EMBEDDING_MODEL
