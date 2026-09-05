@@ -83,6 +83,29 @@ class VectorStoreService:
             store.add_documents(documents)
         store.save_local(str(self.index_path))
 
+    def delete_document(self, document_id: int) -> int:
+        """Remove every chunk belonging to one document. Returns the count.
+
+        Without this, deleting a document would leave its text retrievable -
+        and quotable in answers - long after the user removed it.
+        """
+        store = self._load_store()
+        if store is None:
+            return 0
+
+        doomed = [
+            docstore_id
+            for docstore_id in store.index_to_docstore_id.values()
+            if str(getattr(store.docstore.search(docstore_id), "metadata", {}).get("document_id", ""))
+            == str(document_id)
+        ]
+        if not doomed:
+            return 0
+
+        store.delete(doomed)
+        store.save_local(str(self.index_path))
+        return len(doomed)
+
     def search_chunks(
         self,
         query: str,

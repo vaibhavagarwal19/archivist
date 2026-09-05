@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,6 +10,8 @@ from app.models.document import Document
 from app.models.user import User
 from app.services.vector_store import VectorStoreService
 from app.utils.text import chunk_text
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentService:
@@ -62,6 +65,30 @@ class DocumentService:
             ],
         )
         return document
+
+    def delete_document(self, db: Session, owner: User, document_id: int) -> None:
+        """Delete a document, its file, and its vectors.
+
+        Ownership is enforced here: requesting another user's document returns
+        404 rather than 403, so the endpoint does not confirm it exists.
+        """
+        document = db.get(Document, document_id)
+        if document is None or document.owner_id != owner.id:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        try:
+            self.vector_store.delete_document(document_id)
+        except Exception as exc:  # noqa: BLE001 - index cleanup must not block deletion
+            logger.warning("Could not remove vectors for document %s: %s", document_id, exc)
+
+        file_path = Path(document.file_path)
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("Could not remove file %s: %s", file_path, exc)
+
+        db.delete(document)
+        db.commit()
 
     def list_documents(self, db: Session, owner: User) -> list[Document]:
         return (

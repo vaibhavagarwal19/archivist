@@ -93,6 +93,7 @@ Most "chat with your docs" projects are one prompt and one retrieval call. This 
 | `POST` | `/api/v1/summarize` | Summarize meeting notes |
 | `POST` | `/api/v1/upload-doc` | Upload a text document for retrieval |
 | `GET` | `/api/v1/upload-doc` | List your documents |
+| `DELETE` | `/api/v1/upload-doc/{id}` | Delete a document, its file, and its vectors |
 | `POST` | `/api/v1/workflow` | Run a multi-step tool workflow |
 
 Everything except `/health` and the two auth routes requires `Authorization: Bearer <token>`. Interactive docs at `/docs`.
@@ -126,13 +127,13 @@ Redis and Celery are optional. `ENABLE_BACKGROUND_TASKS` defaults to `false`; up
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                                    # 66 tests, ~5s, no network
+pytest                                    # 81 tests, ~8s, no network
 ruff check app frontend scripts tests
 alembic upgrade head                      # apply migrations
 alembic revision --autogenerate -m "..."  # after changing a model
 ```
 
-The suite runs against throwaway SQLite and stubs the model and vector store, so it needs no API key and no network. CI runs lint, tests, and a from-scratch migration on every push.
+The suite runs against throwaway SQLite and stubs the model and vector store, so it needs no API key and no network. The Streamlit console is covered too, via Streamlit's headless `AppTest` harness with the HTTP layer stubbed. CI runs lint, tests, and a from-scratch migration on every push.
 
 ## 6. Running with Docker
 

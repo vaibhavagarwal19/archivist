@@ -1,3 +1,9 @@
+"""Streamlit console for the Internal AI Agents API.
+
+Chat is the primary surface: the agent decides whether to retrieve, which
+tools to run, and what to answer, and every one of those decisions is shown
+inline under the reply rather than hidden in a debug panel.
+"""
 from __future__ import annotations
 
 import os
@@ -24,10 +30,69 @@ def _resolve_api_base() -> str:
     return value.rstrip("/")
 
 
-# The sidebar can still override this at run time.
 DEFAULT_API_BASE = _resolve_api_base()
 
+INTENT_LABELS = {
+    "greeting": "Greeting",
+    "summarization": "Summarization",
+    "reporting": "Reporting",
+    "workflow": "Workflow",
+    "knowledge_lookup": "Knowledge lookup",
+    "general_chat": "General",
+}
 
+TOOL_LABELS = {
+    "get_data": "Look up internal data",
+    "create_ticket": "Create ticket",
+    "send_email": "Send email",
+    "generate_report": "Generate report",
+    "summarize_meeting": "Summarize notes",
+}
+
+EXAMPLE_PROMPTS = [
+    "What does the ops playbook say about payroll sync?",
+    "Summarize the strategy notes into decisions and next steps",
+    "Draft a weekly operations report on hiring blockers",
+    "Investigate the payroll incident, open a ticket, and email ops",
+]
+
+STYLES = """
+<style>
+  .block-container {padding-top: 2.2rem; max-width: 1100px;}
+  [data-testid="stSidebar"] {border-right: 1px solid rgba(255,255,255,.07);}
+
+  .brand {font-size: 1.05rem; font-weight: 700; letter-spacing: -.01em;}
+  .brand-sub {color: #8b90a3; font-size: .78rem; margin-top: -.2rem;}
+
+  .pill {display:inline-block; padding: .12rem .55rem; border-radius: 999px;
+         font-size: .72rem; font-weight: 600; margin-right: .35rem;
+         border: 1px solid rgba(255,255,255,.12); color: #c8cce0;}
+  .pill-accent {background: rgba(109,124,255,.16); border-color: rgba(109,124,255,.4); color: #b3bcff;}
+  .pill-ok {background: rgba(46,204,113,.13); border-color: rgba(46,204,113,.35); color: #86e0ab;}
+  .pill-warn {background: rgba(241,196,15,.13); border-color: rgba(241,196,15,.35); color: #f0d180;}
+
+  .doc-row {display:flex; justify-content:space-between; align-items:center;
+            padding:.55rem .8rem; border:1px solid rgba(255,255,255,.08);
+            border-radius:10px; margin-bottom:.4rem; background: rgba(255,255,255,.02);}
+  .doc-name {font-weight:600; font-size:.9rem;}
+  .doc-meta {color:#8b90a3; font-size:.75rem;}
+
+  .step {padding:.45rem 0 .45rem .9rem; border-left:2px solid rgba(109,124,255,.45); margin-bottom:.2rem;}
+  .step-name {font-weight:600; font-size:.85rem;}
+  .step-why {color:#9aa0b5; font-size:.78rem;}
+
+  .src {padding:.5rem .7rem; border-radius:8px; background:rgba(255,255,255,.03);
+        border:1px solid rgba(255,255,255,.07); margin-bottom:.35rem; font-size:.82rem;}
+  .src-name {color:#b3bcff; font-weight:600; font-size:.78rem;}
+
+  .empty {text-align:center; color:#8b90a3; padding:2.5rem 1rem;}
+</style>
+"""
+
+
+# --------------------------------------------------------------------------
+# State and transport
+# --------------------------------------------------------------------------
 def init_state() -> None:
     defaults = {
         "api_base": DEFAULT_API_BASE,
@@ -36,13 +101,14 @@ def init_state() -> None:
         "message": None,
         "health": None,
         "documents": [],
-        "chat_result": None,
+        "messages": [],
+        "page": "Chat",
+        "chat_use_rag": True,
+        "chat_document_id": None,
+        "pending_prompt": None,
         "report_result": None,
         "summary_result": None,
         "workflow_result": None,
-        "chat_query": "Summarize the hiring blockers from our latest internal documents and tell me who needs follow-up.",
-        "chat_use_rag": True,
-        "chat_document_id": None,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -78,6 +144,8 @@ def api_request(
             detail = response.text
         raise RuntimeError(detail or "Request failed.")
 
+    if response.status_code == 204 or not response.content:
+        return None
     if "application/json" in response.headers.get("content-type", ""):
         return response.json()
     return response.text
@@ -91,30 +159,36 @@ def show_message() -> None:
     message = st.session_state.message
     if not message:
         return
-    if message["type"] == "success":
-        st.success(message["text"])
-    elif message["type"] == "error":
-        st.error(message["text"])
-    else:
-        st.info(message["text"])
+    {"success": st.success, "error": st.error}.get(message["type"], st.info)(message["text"])
+    st.session_state.message = None
 
 
+def format_timestamp(raw: str | None) -> str:
+    """Turn an ISO timestamp into something a person can read."""
+    if not raw:
+        return "unknown"
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).strftime("%d %b %Y, %H:%M")
+    except ValueError:
+        return raw
+
+
+# --------------------------------------------------------------------------
+# Session
+# --------------------------------------------------------------------------
 def refresh_health() -> None:
     try:
         data = api_request("/health")
-        st.session_state.health = {
-            "status": data.get("status", "ok"),
-            "checked_at": datetime.now().isoformat(timespec="seconds"),
-        }
+        st.session_state.health = {"status": data.get("status", "ok"), "ok": True}
     except Exception as exc:
-        st.session_state.health = {
-            "status": f"offline: {exc}",
-            "checked_at": datetime.now().isoformat(timespec="seconds"),
-        }
+        st.session_state.health = {"status": str(exc)[:60], "ok": False}
+
+
+def refresh_documents() -> None:
+    st.session_state.documents = api_request("/api/v1/upload-doc").get("documents", [])
 
 
 def hydrate_session() -> None:
-    """Load the signed-in user and their documents, if a token is present."""
     if not st.session_state.get("access_token"):
         st.session_state.current_user = None
         st.session_state.documents = []
@@ -123,7 +197,6 @@ def hydrate_session() -> None:
         st.session_state.current_user = api_request("/api/v1/auth/me")
         refresh_documents()
     except Exception as exc:
-        # An expired or invalid token should drop the session, not wedge the UI.
         st.session_state.access_token = None
         st.session_state.current_user = None
         st.session_state.documents = []
@@ -132,13 +205,10 @@ def hydrate_session() -> None:
 
 def sign_in(email: str, password: str) -> None:
     token = api_request(
-        "/api/v1/auth/login",
-        method="POST",
-        json_body={"email": email, "password": password},
+        "/api/v1/auth/login", method="POST", json_body={"email": email, "password": password}
     )
     st.session_state.access_token = token["access_token"]
     hydrate_session()
-    set_message("success", f"Signed in as {email}.")
 
 
 def sign_up(email: str, full_name: str, password: str) -> None:
@@ -151,434 +221,419 @@ def sign_up(email: str, full_name: str, password: str) -> None:
 
 
 def sign_out() -> None:
-    st.session_state.access_token = None
-    st.session_state.current_user = None
-    st.session_state.documents = []
-    for key in ("chat_result", "report_result", "summary_result", "workflow_result"):
+    for key in (
+        "access_token",
+        "current_user",
+        "report_result",
+        "summary_result",
+        "workflow_result",
+    ):
         st.session_state[key] = None
-    set_message("info", "Signed out.")
+    st.session_state.documents = []
+    st.session_state.messages = []
 
 
-def refresh_documents() -> None:
-    st.session_state.documents = api_request("/api/v1/upload-doc").get("documents", [])
+# --------------------------------------------------------------------------
+# Sign-in screen
+# --------------------------------------------------------------------------
+def render_auth_screen() -> None:
+    _, mid, _ = st.columns([1, 1.5, 1])
+    with mid:
+        st.markdown("### Internal AI Agents")
+        st.caption(
+            "A retrieval-backed agent for internal documents. Sign in to upload "
+            "documents and query them; each account sees only its own."
+        )
+        show_message()
+
+        sign_in_tab, register_tab = st.tabs(["Sign in", "Create account"])
+        with sign_in_tab:
+            with st.form("sign_in_form"):
+                email = st.text_input("Email")
+                password = st.text_input("Password", type="password")
+                if st.form_submit_button("Sign in", use_container_width=True, type="primary"):
+                    try:
+                        sign_in(email, password)
+                        st.rerun()
+                    except Exception as exc:
+                        set_message("error", str(exc))
+                        st.rerun()
+
+        with register_tab:
+            with st.form("sign_up_form"):
+                new_email = st.text_input("Email", key="reg_email")
+                new_name = st.text_input("Full name", key="reg_name")
+                new_password = st.text_input(
+                    "Password", type="password", key="reg_pw", help="At least 8 characters."
+                )
+                if st.form_submit_button("Create account", use_container_width=True, type="primary"):
+                    try:
+                        sign_up(new_email, new_name, new_password)
+                        st.rerun()
+                    except Exception as exc:
+                        set_message("error", str(exc))
+                        st.rerun()
 
 
+# --------------------------------------------------------------------------
+# Sidebar
+# --------------------------------------------------------------------------
 def render_sidebar() -> None:
     with st.sidebar:
-        st.markdown("## Control Center")
-        api_base = st.text_input("API base URL", value=st.session_state.api_base)
-        if api_base != st.session_state.api_base:
-            st.session_state.api_base = api_base
+        st.markdown(
+            '<div class="brand">Internal AI Agents</div>'
+            '<div class="brand-sub">LangGraph agent · RAG · FastAPI</div>',
+            unsafe_allow_html=True,
+        )
+        st.write("")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Check API", use_container_width=True):
-                refresh_health()
-        with col2:
-            if st.button("Refresh Docs", use_container_width=True):
-                try:
-                    refresh_documents()
-                    set_message("success", "Document list refreshed.")
-                except Exception as exc:
-                    set_message("error", str(exc))
-
-        health = st.session_state.health or {"status": "unknown", "checked_at": "not checked"}
-        st.caption(f"Health: {health['status']}")
-        st.caption(f"Checked: {health['checked_at']}")
-        st.divider()
-        st.caption(
-            "Run the API with `python -m uvicorn app.main:app --reload` and the UI with `streamlit run frontend/streamlit_app.py`."
+        st.session_state.page = st.radio(
+            "Navigation",
+            ["Chat", "Documents", "Direct tools"],
+            label_visibility="collapsed",
         )
 
+        st.divider()
+        user = st.session_state.current_user or {}
+        st.caption("Signed in as")
+        st.markdown(f"**{user.get('full_name') or user.get('email', 'unknown')}**")
+        st.caption(user.get("email", ""))
 
-def render_workspace_status() -> None:
-    st.markdown("### Workspace Access")
-    user = st.session_state.current_user
-
-    if user:
-        st.success(f"Signed in as {user.get('full_name') or user.get('email')}")
-        st.code(user.get("email", ""), language="text")
-        st.caption("Documents, reports, and workflow actions are scoped to this account.")
         if st.button("Sign out", use_container_width=True):
             sign_out()
             st.rerun()
-        return
 
-    st.info("Sign in to use the workspace. Each account sees only its own documents.")
-    login_tab, register_tab = st.tabs(["Sign in", "Create account"])
-
-    with login_tab:
-        with st.form("sign_in_form"):
-            email = st.text_input("Email", key="login_email")
-            password = st.text_input("Password", type="password", key="login_password")
-            if st.form_submit_button("Sign in", use_container_width=True):
-                try:
-                    sign_in(email, password)
-                    st.rerun()
-                except Exception as exc:
-                    set_message("error", str(exc))
-
-    with register_tab:
-        with st.form("sign_up_form"):
-            new_email = st.text_input("Email", key="register_email")
-            new_name = st.text_input("Full name", key="register_name")
-            new_password = st.text_input(
-                "Password", type="password", key="register_password",
-                help="At least 8 characters.",
-            )
-            if st.form_submit_button("Create account", use_container_width=True):
-                try:
-                    sign_up(new_email, new_name, new_password)
-                    st.rerun()
-                except Exception as exc:
-                    set_message("error", str(exc))
+        st.divider()
+        health = st.session_state.health or {"status": "not checked", "ok": False}
+        dot = "🟢" if health.get("ok") else "🔴"
+        st.caption(f"{dot} API {health.get('status')}")
+        with st.expander("Connection"):
+            api_base = st.text_input("API base URL", value=st.session_state.api_base)
+            if api_base != st.session_state.api_base:
+                st.session_state.api_base = api_base
+            if st.button("Re-check", use_container_width=True):
+                refresh_health()
+                st.rerun()
 
 
-def render_overview() -> None:
-    user = st.session_state.current_user
-    docs = st.session_state.documents
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Signed in as", user.get("full_name") or user.get("email") if user else "-")
-    c2.metric("Your documents", len(docs))
-    c3.metric("Agent tools", "5")
+# --------------------------------------------------------------------------
+# Chat
+# --------------------------------------------------------------------------
+def parse_context_item(raw: str) -> tuple[str, str]:
+    """Split a retrieved chunk into (document name, text)."""
+    name, _, rest = raw.partition("\n")
+    if name.startswith("Document: "):
+        return name.removeprefix("Document: ").strip(), rest.removeprefix("Content: ").strip()
+    return "source", raw
 
 
-def get_document_scope_options() -> list[dict[str, Any]]:
-    options = [{"label": "All uploaded documents", "value": None}]
-    options.extend(
-        {
-            "label": item.get("file_name") or f"Document {item.get('id')}",
-            "value": item.get("id"),
-        }
-        for item in st.session_state.documents
-    )
-    return options
-
-
-def render_chat() -> None:
-    st.markdown("### AI Chat")
-    st.caption(
-        "Use AI Chat as the main entry point. The agent can answer directly, retrieve uploaded context, "
-        "generate reports, summarize meetings, and run workflow actions."
-    )
-    with st.expander("Try these chat prompts"):
-        st.code(
-            "what does the uploaded document say about payroll sync?\n\n"
-            "summarize these meeting notes from the uploaded document\n\n"
-            "create a weekly operations report about hiring blockers, vendor delays, and payroll risk from the uploaded document\n\n"
-            "investigate payroll sync, create a ticket, and notify ops with an update email",
-            language="text",
-        )
-    document_options = get_document_scope_options()
-    selected_value = st.session_state.chat_document_id
-    selected_index = next(
-        (index for index, option in enumerate(document_options) if option["value"] == selected_value),
-        0,
-    )
-    with st.form("chat_form"):
-        selected_index = st.selectbox(
-            "Document scope",
-            options=range(len(document_options)),
-            format_func=lambda index: document_options[index]["label"],
-            index=selected_index,
-            help="Choose one document when your prompt refers to 'the uploaded document'. Leave it on all documents for broad search.",
-        )
-        query = st.text_area(
-            "Prompt",
-            value=st.session_state.chat_query,
-            height=140,
-        )
-        use_rag = st.checkbox("Use RAG for document context", value=st.session_state.chat_use_rag)
-        submitted = st.form_submit_button("Run chat", use_container_width=True)
-    if submitted:
-        try:
-            st.session_state.chat_query = query
-            st.session_state.chat_use_rag = use_rag
-            st.session_state.chat_document_id = document_options[selected_index]["value"]
-            st.session_state.chat_result = api_request(
-                "/api/v1/chat",
-                method="POST",
-                json_body={
-                    "query": query,
-                    "use_rag": use_rag,
-                    "document_id": document_options[selected_index]["value"],
-                },
-            )
-            set_message("success", "Chat response received.")
-        except Exception as exc:
-            set_message("error", str(exc))
-
-    result = st.session_state.chat_result
-    if not result:
-        st.info("Your next agent answer will appear here.")
-        return
-
-    if st.session_state.chat_document_id is not None:
-        chosen = next(
-            (
-                item.get("file_name")
-                for item in st.session_state.documents
-                if item.get("id") == st.session_state.chat_document_id
-            ),
-            f"Document {st.session_state.chat_document_id}",
-        )
-        st.caption(f"Scoped to: {chosen}")
-    else:
-        st.caption("Scoped to: all uploaded documents")
-
-    tool_calls = result.get("tool_calls") or []
-    planned_tools = [step.get("tool_name", "tool") for step in (result.get("plan") or [])]
-    tool_call_names = [tool.get("name", "tool") for tool in tool_calls]
-
-    status_left, status_right, status_third = st.columns(3)
-    status_left.metric("Intent", result.get("intent", "unknown"))
-    status_right.metric("Confidence", f"{result.get('confidence', 0):.2f}")
-    status_third.metric("Executed tools", len(tool_calls))
-
-    if result.get("intent_reason"):
-        st.write("**Reasoning**")
-        st.write(result["intent_reason"])
-
-    if result.get("clarification_needed"):
-        st.warning(result.get("answer", "Please choose a specific document and try again."))
-        candidates = result.get("candidate_documents") or []
-        if candidates:
-            st.write("**Matching documents**")
-            for item in candidates:
-                doc_id = item.get("document_id")
-                file_name = item.get("file_name")
-                match_count = item.get("match_count", 0)
-                col1, col2 = st.columns([0.72, 0.28])
-                with col1:
-                    st.write(f"{file_name} ({match_count} matching chunk(s))")
-                with col2:
-                    if st.button("Use this", key=f"use-doc-{doc_id}", use_container_width=True):
-                        st.session_state.chat_document_id = doc_id
-                        set_message("info", f"Selected {file_name}. Run the chat again to continue.")
-                        st.rerun()
-        return
-
-    if planned_tools:
-        st.write("**Agent route**")
-        st.write(" -> ".join(planned_tools))
-
-    if any(name == "generate_report" for name in tool_call_names):
-        st.success("The agent chose report generation for this chat request.")
-    elif any(name == "summarize_meeting" for name in tool_call_names):
-        st.success("The agent chose meeting summarization for this chat request.")
-    elif any(name in {"get_data", "create_ticket", "send_email"} for name in tool_call_names):
-        st.success("The agent chose workflow tool execution for this chat request.")
-    elif result.get("context"):
-        st.info("The agent answered with retrieved document context.")
-    else:
-        st.info("The agent answered directly without executing tools.")
-
-    st.write("**Final answer**")
-    st.code(result.get("answer", ""), language="markdown")
-
-    plan = result.get("plan") or []
-    if plan:
-        st.write("**Execution plan**")
-        for index, step in enumerate(plan, start=1):
-            with st.expander(f"Step {index}: {step.get('tool_name', 'tool')}"):
-                st.write(step.get("rationale") or "No rationale provided.")
-                st.json(step.get("args") or {})
-
+def render_trace(result: dict[str, Any]) -> None:
+    """Show how the agent reached its answer."""
+    intent = result.get("intent", "general_chat")
+    confidence = result.get("confidence") or 0.0
     context = result.get("context") or []
+    plan = result.get("plan") or []
+    tool_calls = result.get("tool_calls") or []
+
+    summary_bits = [INTENT_LABELS.get(intent, intent)]
     if context:
-        st.write("**Retrieved context**")
-        for index, item in enumerate(context, start=1):
-            with st.expander(f"Context {index}"):
-                st.write(item)
-
+        summary_bits.append(f"{len(context)} source{'s' if len(context) > 1 else ''}")
     if tool_calls:
-        st.write("**Tool calls**")
-        for index, tool in enumerate(tool_calls, start=1):
-            with st.expander(f"Tool {index}: {tool.get('name', 'unknown')}"):
-                st.json(tool.get("args") or {})
-                st.code(tool.get("output", ""), language="text")
+        summary_bits.append(f"{len(tool_calls)} tool{'s' if len(tool_calls) > 1 else ''}")
 
-        report_calls = [tool for tool in tool_calls if tool.get("name") == "generate_report"]
-        if report_calls:
-            st.write("**Agent-generated report output**")
-            for tool in report_calls:
-                st.code(tool.get("output", ""), language="markdown")
-
-        summary_calls = [tool for tool in tool_calls if tool.get("name") == "summarize_meeting"]
-        if summary_calls:
-            st.write("**Agent-generated summary output**")
-            for tool in summary_calls:
-                st.code(tool.get("output", ""), language="markdown")
-
-
-def render_reports() -> None:
-    st.markdown("### Report Generator")
-    st.caption(
-        "This is the direct report endpoint. You can also ask in AI Chat and let the agent choose "
-        "`generate_report` automatically."
-    )
-    with st.form("report_form"):
-        title = st.text_input("Title", value="Weekly Operations Review")
-        prompt = st.text_area(
-            "Prompt",
-            value="Create an executive-ready weekly operations report covering wins, blockers, and recommended next steps.",
-            height=140,
+    with st.expander("How I answered  ·  " + "  ·  ".join(summary_bits)):
+        pills = [
+            f'<span class="pill pill-accent">{INTENT_LABELS.get(intent, intent)}</span>',
+            f'<span class="pill">confidence {confidence:.0%}</span>',
+        ]
+        pills.append(
+            '<span class="pill pill-ok">retrieval used</span>'
+            if context
+            else '<span class="pill">no retrieval</span>'
         )
-        submitted = st.form_submit_button("Create report", use_container_width=True)
-    if submitted:
-        try:
-            st.session_state.report_result = api_request(
-                "/api/v1/generate-report",
-                method="POST",
-                json_body={"title": title, "prompt": prompt},
-            )
-            set_message("success", "Report generated.")
-        except Exception as exc:
-            set_message("error", str(exc))
+        st.markdown("".join(pills), unsafe_allow_html=True)
 
-    if st.session_state.report_result:
-        result = st.session_state.report_result
-        st.write(f"**Title:** {result.get('title')}")
-        st.write(f"**Created:** {result.get('created_at')}")
-        st.code(result.get("content", ""), language="markdown")
+        if result.get("intent_reason"):
+            st.caption(result["intent_reason"])
+
+        if plan:
+            st.markdown("**Planned steps**")
+            for step in plan:
+                name = TOOL_LABELS.get(step.get("tool_name", ""), step.get("tool_name", "tool"))
+                why = step.get("rationale") or ""
+                st.markdown(
+                    f'<div class="step"><div class="step-name">{name}</div>'
+                    f'<div class="step-why">{why}</div></div>',
+                    unsafe_allow_html=True,
+                )
+
+        if context:
+            st.markdown("**Sources**")
+            for item in context:
+                doc_name, text = parse_context_item(item)
+                snippet = text[:280] + ("…" if len(text) > 280 else "")
+                st.markdown(
+                    f'<div class="src"><div class="src-name">{doc_name}</div>{snippet}</div>',
+                    unsafe_allow_html=True,
+                )
+
+        if tool_calls:
+            # Rendered inline rather than in per-call expanders: Streamlit does
+            # not allow an expander inside another expander.
+            st.markdown("**Executed**")
+            for call in tool_calls:
+                label = TOOL_LABELS.get(call.get("name", ""), call.get("name", "tool"))
+                args = call.get("args") or {}
+                arg_summary = ", ".join(f"{k}={v}" for k, v in list(args.items())[:3])
+                st.markdown(
+                    f'<div class="step"><div class="step-name">{label}</div>'
+                    f'<div class="step-why">{arg_summary}</div></div>',
+                    unsafe_allow_html=True,
+                )
+                output = call.get("output", "")
+                if output:
+                    st.caption(output if len(output) < 400 else output[:400] + "…")
 
 
-def render_summary() -> None:
-    st.markdown("### Meeting Summary")
-    st.caption(
-        "This is the direct summary endpoint. You can also paste notes into AI Chat and let the agent choose "
-        "`summarize_meeting` automatically."
-    )
-    with st.form("summary_form"):
-        notes = st.text_area(
-            "Meeting notes",
-            value=(
-                "We reviewed Q2 hiring goals, flagged vendor delays in onboarding, agreed to pause contractor spend, "
-                "and assigned finance to confirm revised timelines by Friday."
-            ),
-            height=180,
+def render_clarification(result: dict[str, Any], key_prefix: str) -> None:
+    """The agent asked which document was meant; offer the candidates."""
+    st.warning(result.get("answer") or "Which document did you mean?")
+    for item in result.get("candidate_documents") or []:
+        doc_id = item.get("document_id")
+        left, right = st.columns([0.75, 0.25])
+        left.markdown(
+            f"**{item.get('file_name')}**  \n"
+            f"<span class='doc-meta'>{item.get('match_count', 0)} matching chunk(s)</span>",
+            unsafe_allow_html=True,
         )
-        submitted = st.form_submit_button("Create summary", use_container_width=True)
-    if submitted:
-        try:
-            st.session_state.summary_result = api_request(
-                "/api/v1/summarize",
-                method="POST",
-                json_body={"meeting_notes": notes},
-            )
-            set_message("success", "Summary created.")
-        except Exception as exc:
-            set_message("error", str(exc))
-
-    if st.session_state.summary_result:
-        st.code(st.session_state.summary_result.get("summary", ""), language="markdown")
+        if right.button("Use this", key=f"{key_prefix}-{doc_id}", use_container_width=True):
+            st.session_state.chat_document_id = doc_id
+            set_message("info", f"Scoped to {item.get('file_name')}. Ask again to continue.")
+            st.rerun()
 
 
-def render_workflow() -> None:
-    st.markdown("### Workflow Automation")
-    st.caption(
-        "This runs the direct workflow endpoint. In AI Chat, the agent can now also decide to execute "
-        "`get_data`, `create_ticket`, and `send_email` as part of its own plan."
-    )
-    with st.form("workflow_form"):
-        objective = st.text_area(
-            "Objective",
-            value="Investigate a failed payroll sync, open an operations ticket, and notify stakeholders.",
-            height=140,
+def send_chat(prompt: str) -> None:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    try:
+        result = api_request(
+            "/api/v1/chat",
+            method="POST",
+            json_body={
+                "query": prompt,
+                "use_rag": st.session_state.chat_use_rag,
+                "document_id": st.session_state.chat_document_id,
+            },
         )
-        recipient_email = st.text_input("Recipient email", value="ops@example.com")
-        submitted = st.form_submit_button("Run workflow", use_container_width=True)
-    if submitted:
-        try:
-            st.session_state.workflow_result = api_request(
-                "/api/v1/workflow",
-                method="POST",
-                json_body={"objective": objective, "recipient_email": recipient_email},
-            )
-            set_message("success", "Workflow executed.")
-        except Exception as exc:
-            set_message("error", str(exc))
+        st.session_state.messages.append(
+            {"role": "assistant", "content": result.get("answer", ""), "result": result}
+        )
+    except Exception as exc:
+        st.session_state.messages.append(
+            {"role": "assistant", "content": f"Request failed: {exc}", "result": None}
+        )
 
-    result = st.session_state.workflow_result
-    if not result:
-        st.info("Workflow steps will appear here.")
+
+def render_chat_page() -> None:
+    docs = st.session_state.documents
+    options = [("All documents", None)] + [(d["file_name"], d["id"]) for d in docs]
+    current = st.session_state.chat_document_id
+    index = next((i for i, (_, v) in enumerate(options) if v == current), 0)
+
+    left, right = st.columns([0.62, 0.38])
+    with left:
+        choice = st.selectbox(
+            "Scope",
+            range(len(options)),
+            index=index,
+            format_func=lambda i: options[i][0],
+            label_visibility="collapsed",
+        )
+        st.session_state.chat_document_id = options[choice][1]
+    with right:
+        st.session_state.chat_use_rag = st.toggle(
+            "Search documents", value=st.session_state.chat_use_rag
+        )
+
+    if not st.session_state.messages:
+        st.markdown(
+            '<div class="empty">Ask the agent about your documents, or have it '
+            "generate a report, summarize notes, or run a workflow.</div>",
+            unsafe_allow_html=True,
+        )
+        if not docs:
+            st.info("You have no documents yet. Upload one from the Documents tab for grounded answers.")
+        cols = st.columns(2)
+        for i, example in enumerate(EXAMPLE_PROMPTS):
+            if cols[i % 2].button(example, key=f"ex-{i}", use_container_width=True):
+                st.session_state.pending_prompt = example
+                st.rerun()
+
+    for i, message in enumerate(st.session_state.messages):
+        with st.chat_message(message["role"]):
+            result = message.get("result")
+            if result and result.get("clarification_needed"):
+                render_clarification(result, key_prefix=f"clar-{i}")
+                continue
+            # Rendered as markdown so headings, lists and bold in the model's
+            # output display properly instead of as literal source text.
+            st.markdown(message["content"])
+            if result:
+                render_trace(result)
+
+    if st.session_state.messages and st.button("Clear conversation"):
+        st.session_state.messages = []
+        st.rerun()
+
+    prompt = st.chat_input("Ask anything about your internal documents")
+    if st.session_state.pending_prompt:
+        prompt = st.session_state.pending_prompt
+        st.session_state.pending_prompt = None
+    if prompt:
+        send_chat(prompt)
+        st.rerun()
+
+
+# --------------------------------------------------------------------------
+# Documents
+# --------------------------------------------------------------------------
+def render_documents_page() -> None:
+    st.markdown("#### Documents")
+    st.caption("Uploaded text is chunked, embedded, and searchable by the agent.")
+
+    with st.form("upload_form", clear_on_submit=True):
+        upload = st.file_uploader("Add a document", type=["txt", "md", "csv", "json", "log"])
+        if st.form_submit_button("Upload", type="primary") and upload is not None:
+            try:
+                api_request(
+                    "/api/v1/upload-doc",
+                    method="POST",
+                    files={"file": (upload.name, upload.getvalue(), upload.type or "text/plain")},
+                )
+                refresh_documents()
+                set_message("success", f"Uploaded {upload.name}.")
+            except Exception as exc:
+                set_message("error", str(exc))
+            st.rerun()
+
+    docs = st.session_state.documents
+    if not docs:
+        st.markdown('<div class="empty">No documents yet.</div>', unsafe_allow_html=True)
         return
 
-    st.write(f"**Status:** {result.get('status')}")
-    st.write(f"**Objective:** {result.get('objective')}")
-    for index, step in enumerate(result.get("steps") or [], start=1):
-        with st.expander(f"Step {index}: {step.get('name', 'tool')}"):
-            st.json(step.get("args") or {})
-            st.code(step.get("output", ""), language="text")
+    st.caption(f"{len(docs)} document(s)")
+    for doc in docs:
+        left, right = st.columns([0.86, 0.14])
+        left.markdown(
+            f'<div class="doc-row"><div><div class="doc-name">{doc["file_name"]}</div>'
+            f'<div class="doc-meta">Added {format_timestamp(doc.get("created_at"))}</div></div></div>',
+            unsafe_allow_html=True,
+        )
+        if right.button("Delete", key=f"del-{doc['id']}", use_container_width=True):
+            try:
+                api_request(f"/api/v1/upload-doc/{doc['id']}", method="DELETE")
+                refresh_documents()
+                set_message("success", f"Deleted {doc['file_name']}.")
+            except Exception as exc:
+                set_message("error", str(exc))
+            st.rerun()
 
 
-def render_documents() -> None:
-    st.markdown("### Documents")
-    uploaded_file = st.file_uploader("Upload a text-like document", type=None)
-    if st.button("Upload document", use_container_width=True, disabled=uploaded_file is None):
-        try:
-            files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type or "application/octet-stream")}
-            api_request("/api/v1/upload-doc", method="POST", files=files)
-            refresh_documents()
-            set_message("success", "Document uploaded successfully.")
-        except Exception as exc:
-            set_message("error", str(exc))
+# --------------------------------------------------------------------------
+# Direct tools
+# --------------------------------------------------------------------------
+def render_tools_page() -> None:
+    st.markdown("#### Direct tools")
+    st.caption(
+        "These call single endpoints directly. Chat can invoke the same capabilities "
+        "on its own when the request calls for them."
+    )
 
-    documents = st.session_state.documents
-    if not documents:
-        st.info("No uploaded documents yet.")
-        return
-    for item in documents:
-        with st.container(border=True):
-            st.write(f"**{item.get('file_name', 'document')}**")
-            st.caption(f"Created: {item.get('created_at')}")
+    report_tab, summary_tab, workflow_tab = st.tabs(["Report", "Summary", "Workflow"])
+
+    with report_tab:
+        with st.form("report_form"):
+            title = st.text_input("Title", value="Weekly Operations Report")
+            prompt = st.text_area("What should it cover?", height=120)
+            if st.form_submit_button("Generate", type="primary"):
+                try:
+                    st.session_state.report_result = api_request(
+                        "/api/v1/generate-report",
+                        method="POST",
+                        json_body={"title": title, "prompt": prompt},
+                    )
+                except Exception as exc:
+                    set_message("error", str(exc))
+                    st.rerun()
+        if st.session_state.report_result:
+            st.markdown(st.session_state.report_result.get("content", ""))
+
+    with summary_tab:
+        with st.form("summary_form"):
+            notes = st.text_area("Meeting notes", height=160)
+            if st.form_submit_button("Summarize", type="primary"):
+                try:
+                    st.session_state.summary_result = api_request(
+                        "/api/v1/summarize", method="POST", json_body={"meeting_notes": notes}
+                    )
+                except Exception as exc:
+                    set_message("error", str(exc))
+                    st.rerun()
+        if st.session_state.summary_result:
+            st.markdown(st.session_state.summary_result.get("summary", ""))
+
+    with workflow_tab:
+        with st.form("workflow_form"):
+            objective = st.text_input("Objective", value="Investigate the payroll sync failure")
+            recipient = st.text_input("Notify", value="ops@example.com")
+            if st.form_submit_button("Run workflow", type="primary"):
+                try:
+                    st.session_state.workflow_result = api_request(
+                        "/api/v1/workflow",
+                        method="POST",
+                        json_body={"objective": objective, "recipient_email": recipient},
+                    )
+                except Exception as exc:
+                    set_message("error", str(exc))
+                    st.rerun()
+        result = st.session_state.workflow_result
+        if result:
+            st.caption(f"Status: {result.get('status')}")
+            for step in result.get("steps", []):
+                with st.expander(TOOL_LABELS.get(step.get("name", ""), step.get("name", "step"))):
+                    st.json(step.get("args") or {})
+                    st.write(step.get("output", ""))
 
 
+# --------------------------------------------------------------------------
 def main() -> None:
     st.set_page_config(
         page_title="Internal AI Agents",
-        page_icon="IA",
+        page_icon="◆",
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    st.markdown(STYLES, unsafe_allow_html=True)
     init_state()
+
     if st.session_state.health is None:
         refresh_health()
-    if st.session_state.current_user is None:
+    if st.session_state.access_token and st.session_state.current_user is None:
         hydrate_session()
 
-    st.title("Internal AI Agents")
-    st.caption("Streamlit command center for the FastAPI, LangGraph, and RAG backend.")
+    if not st.session_state.current_user:
+        render_auth_screen()
+        return
 
     render_sidebar()
     show_message()
 
-    # Every workspace panel calls a protected endpoint, so there is nothing
-    # meaningful to render until the visitor has signed in.
-    if not st.session_state.current_user:
-        left, _ = st.columns([0.5, 0.5], gap="large")
-        with left:
-            render_workspace_status()
-        return
-
-    render_overview()
-
-    left, right = st.columns([0.36, 0.64], gap="large")
-    with left:
-        render_workspace_status()
-        st.divider()
-        render_documents()
-    with right:
-        render_chat()
-        with st.expander("Direct Endpoints", expanded=False):
-            st.caption("Optional single-purpose tools. AI Chat can also trigger these capabilities automatically.")
-            top_row_left, top_row_right = st.columns(2, gap="large")
-            with top_row_left:
-                render_reports()
-            with top_row_right:
-                render_summary()
-            st.divider()
-            render_workflow()
+    page = st.session_state.page
+    if page == "Chat":
+        render_chat_page()
+    elif page == "Documents":
+        render_documents_page()
+    else:
+        render_tools_page()
 
 
 if __name__ == "__main__":

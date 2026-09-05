@@ -150,3 +150,88 @@ class TestRetrievalScoping:
         monkeypatch.setattr(VectorStoreService, "__init__", lambda self: None)
         monkeypatch.setattr(VectorStoreService, "_load_store", lambda self: None)
         assert VectorStoreService().search_chunks("anything", owner_id=1) == []
+
+
+class TestDeletion:
+    def test_owner_can_delete_their_document(self, client, auth_headers, fake_vector_store):
+        doc_id = upload(client, auth_headers, "temp.txt", "Disposable notes.").json()["document"]["id"]
+
+        response = client.delete(f"/api/v1/upload-doc/{doc_id}", headers=auth_headers)
+        assert response.status_code == 204
+        assert client.get("/api/v1/upload-doc", headers=auth_headers).json()["documents"] == []
+
+    def test_deleting_another_users_document_is_not_found(self, client, auth_headers, fake_vector_store):
+        """404, not 403: the response must not confirm the document exists."""
+        doc_id = upload(client, auth_headers, "private.txt", "Secret.").json()["document"]["id"]
+
+        client.post(
+            "/api/v1/auth/register",
+            json={"email": "intruder@example.com", "full_name": "Intruder", "password": "StrongPass123"},
+        )
+        token = client.post(
+            "/api/v1/auth/login",
+            json={"email": "intruder@example.com", "password": "StrongPass123"},
+        ).json()["access_token"]
+
+        response = client.delete(
+            f"/api/v1/upload-doc/{doc_id}", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 404
+        # The owner still has it.
+        assert len(client.get("/api/v1/upload-doc", headers=auth_headers).json()["documents"]) == 1
+
+    def test_deleting_a_missing_document_is_not_found(self, client, auth_headers):
+        assert client.delete("/api/v1/upload-doc/99999", headers=auth_headers).status_code == 404
+
+    def test_delete_requires_authentication(self, client):
+        assert client.delete("/api/v1/upload-doc/1").status_code == 401
+
+    def test_delete_removes_vectors_for_that_document_only(self, monkeypatch, tmp_path):
+        """Chunks from other documents must survive the delete."""
+        from langchain.docstore.document import Document as LCDocument
+
+        from app.services.vector_store import VectorStoreService
+
+        monkeypatch.setattr(VectorStoreService, "__init__", lambda self: None)
+        service = VectorStoreService()
+        service.index_path = tmp_path / "index"
+
+        saved = {}
+
+        class FakeDocstore:
+            def __init__(self, docs):
+                self.docs = docs
+
+            def search(self, key):
+                return self.docs[key]
+
+        class FakeStore:
+            def __init__(self):
+                self.index_to_docstore_id = {0: "a", 1: "b", 2: "c"}
+                self.docstore = FakeDocstore(
+                    {
+                        "a": LCDocument(page_content="1", metadata={"document_id": 7}),
+                        "b": LCDocument(page_content="2", metadata={"document_id": 8}),
+                        "c": LCDocument(page_content="3", metadata={"document_id": 7}),
+                    }
+                )
+
+            def delete(self, ids):
+                saved["deleted"] = sorted(ids)
+
+            def save_local(self, path):
+                saved["saved"] = True
+
+        monkeypatch.setattr(VectorStoreService, "_load_store", lambda self: FakeStore())
+
+        removed = service.delete_document(7)
+        assert removed == 2
+        assert saved["deleted"] == ["a", "c"]
+        assert saved["saved"] is True
+
+    def test_delete_without_an_index_is_a_noop(self, monkeypatch):
+        from app.services.vector_store import VectorStoreService
+
+        monkeypatch.setattr(VectorStoreService, "__init__", lambda self: None)
+        monkeypatch.setattr(VectorStoreService, "_load_store", lambda self: None)
+        assert VectorStoreService().delete_document(1) == 0
