@@ -1,4 +1,4 @@
-"""Streamlit console for the Internal AI Agents API.
+"""Streamlit console for Archivist.
 
 Chat is the primary surface: the agent decides whether to retrieve, which
 tools to run, and what to answer, and every one of those decisions is shown
@@ -241,10 +241,10 @@ def sign_out() -> None:
 def render_auth_screen() -> None:
     _, mid, _ = st.columns([1, 1.5, 1])
     with mid:
-        st.markdown("### Internal AI Agents")
+        st.markdown("### Archivist")
         st.caption(
-            "A retrieval-backed agent for internal documents. Sign in to upload "
-            "documents and query them; each account sees only its own."
+            "An internal knowledge agent that answers from your own documents. "
+            "Sign in to upload documents and query them; each account sees only its own."
         )
         show_message()
 
@@ -283,7 +283,7 @@ def render_auth_screen() -> None:
 def render_sidebar() -> None:
     with st.sidebar:
         st.markdown(
-            '<div class="brand">Internal AI Agents</div>'
+            '<div class="brand">Archivist</div>'
             '<div class="brand-sub">LangGraph agent · RAG · FastAPI</div>',
             unsafe_allow_html=True,
         )
@@ -643,7 +643,7 @@ def render_tools_page() -> None:
 # --------------------------------------------------------------------------
 def main() -> None:
     st.set_page_config(
-        page_title="Internal AI Agents",
+        page_title="Archivist",
         page_icon="◆",
         layout="wide",
         initial_sidebar_state="expanded",

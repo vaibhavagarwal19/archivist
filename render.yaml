@@ -1,4 +1,9 @@
-# Render Blueprint - deploys the API, the Streamlit UI, and Postgres together.
+# Render Blueprint for Archivist - deploys the API, the Streamlit UI, and
+# Postgres together.
+#
+# Service names stay as internal-ai-agents-* deliberately: renaming them here
+# makes the next blueprint sync create new services on new URLs and orphan the
+# running ones, which would break the live demo link.
 # Create it from the Render dashboard: New > Blueprint > point at this repo.
 #
 # After the first deploy, set GROQ_API_KEY on the api service (it is marked

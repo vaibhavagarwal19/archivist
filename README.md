@@ -1,8 +1,8 @@
-# Internal AI Agents
+# Archivist
 
-An internal-knowledge assistant built as a **stateful LangGraph agent** rather than a single LLM call. It classifies what you are asking for, decides whether to search your documents, asks which document you meant when the request is ambiguous, plans a sequence of tool calls, executes them, and returns the full reasoning trace alongside the answer.
+An internal knowledge agent that answers from your own documents — built as a **stateful LangGraph agent** rather than a single LLM call. It classifies what you are asking for, decides whether to search your documents, asks which document you meant when the request is ambiguous, plans a sequence of tool calls, executes them, and returns the full reasoning trace alongside the answer.
 
-FastAPI backend · LangGraph orchestration · FAISS retrieval · JWT auth · Streamlit operator UI.
+[Live demo](https://internal-ai-agents-ui.onrender.com) · FastAPI · LangGraph · FAISS · JWT auth · Streamlit console
 
 **Measured, not asserted:** an evaluation harness scores the intent router against the keyword baseline it falls back to — currently **96.3% vs 37.0%** over 54 labelled cases — and retrieval at **100% hit@4 / 0.93 MRR**. See [evals/](evals/).
 

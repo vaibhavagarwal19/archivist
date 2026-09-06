@@ -1,7 +1,7 @@
 [project]
-name = "internal-ai-agents"
+name = "archivist"
 version = "1.0.0"
-description = "FastAPI + LangGraph internal agent platform with RAG, auth, and workflow tools"
+description = "Archivist - a document-grounded LangGraph agent with retrieval, tools, and evals"
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]

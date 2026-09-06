@@ -14,7 +14,7 @@ import pytest
 
 # Settings are read at import time and cached, so the environment has to be
 # shaped before anything under app.* is imported.
-_TMP_DIR = Path(tempfile.mkdtemp(prefix="internal-ai-agents-tests-"))
+_TMP_DIR = Path(tempfile.mkdtemp(prefix="archivist-tests-"))
 os.environ.update(
     {
         "DEBUG": "true",

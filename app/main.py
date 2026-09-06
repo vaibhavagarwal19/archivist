@@ -75,7 +75,7 @@ async def service_configuration_error_handler(
 async def root() -> JSONResponse:
     return JSONResponse(
         {
-            "message": "Internal AI Agents API is running.",
+            "message": "Archivist API is running.",
             "docs_url": "/docs",
             "streamlit_frontend": "Run `streamlit run frontend/streamlit_app.py` to start the UI.",
         }

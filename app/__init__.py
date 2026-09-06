@@ -1,1 +1,1 @@
-"""Internal AI Agents application package."""
+"""Archivist - an internal knowledge agent."""
