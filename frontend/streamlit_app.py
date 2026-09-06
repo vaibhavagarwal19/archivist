@@ -529,18 +529,26 @@ def render_documents_page() -> None:
     st.caption("Uploaded text is chunked, embedded, and searchable by the agent.")
 
     with st.form("upload_form", clear_on_submit=True):
-        upload = st.file_uploader("Add a document", type=["txt", "md", "csv", "json", "log"])
+        upload = st.file_uploader(
+            "Add a document",
+            type=["txt", "md", "csv", "json", "log", "yaml", "yml"],
+            help="Plain text only. PDFs and Word documents are not read yet - export them as .txt first.",
+        )
         if st.form_submit_button("Upload", type="primary") and upload is not None:
-            try:
-                api_request(
-                    "/api/v1/upload-doc",
-                    method="POST",
-                    files={"file": (upload.name, upload.getvalue(), upload.type or "text/plain")},
-                )
-                refresh_documents()
-                set_message("success", f"Uploaded {upload.name}.")
-            except Exception as exc:
-                set_message("error", str(exc))
+            # Embedding takes several seconds on a cold instance. Without this
+            # spinner the page just kept showing the previous (often empty)
+            # document list, which reads as "the upload silently failed".
+            with st.spinner(f"Uploading and indexing {upload.name}..."):
+                try:
+                    api_request(
+                        "/api/v1/upload-doc",
+                        method="POST",
+                        files={"file": (upload.name, upload.getvalue(), upload.type or "text/plain")},
+                    )
+                    refresh_documents()
+                    set_message("success", f"Uploaded {upload.name}.")
+                except Exception as exc:
+                    set_message("error", str(exc))
             st.rerun()
 
     docs = st.session_state.documents

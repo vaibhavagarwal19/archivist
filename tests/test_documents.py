@@ -294,3 +294,78 @@ class TestSentenceAwareChunking:
     def test_empty_and_whitespace_text(self):
         assert chunk_text("") == []
         assert chunk_text("   \n\t ") == []
+
+
+class TestUploadTypeValidation:
+    """Binary uploads must be refused, not decoded into mojibake.
+
+    Regression: the service decoded with errors="ignore", so a PDF uploaded
+    with HTTP 201 and was indexed as garbage. Retrieval then surfaced
+    unreadable chunks that the agent quoted as if they were real content.
+    """
+
+    PDF = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<</Type/Catalog>>endobj\ntrailer\n%%EOF\n"
+    DOCX = b"PK\x03\x04\x14\x00\x06\x00binary-office-content"
+    LEGACY_DOC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1binary"
+    PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+
+    def test_pdf_is_rejected(self, client, auth_headers, fake_vector_store):
+        response = client.post(
+            "/api/v1/upload-doc",
+            headers=auth_headers,
+            files={"file": ("report.pdf", io.BytesIO(self.PDF), "application/pdf")},
+        )
+        assert response.status_code == 415
+        assert ".pdf" in response.json()["detail"]
+
+    def test_docx_is_rejected(self, client, auth_headers, fake_vector_store):
+        response = client.post(
+            "/api/v1/upload-doc",
+            headers=auth_headers,
+            files={"file": ("notes.docx", io.BytesIO(self.DOCX), "application/octet-stream")},
+        )
+        assert response.status_code == 415
+
+    def test_binary_content_is_rejected_even_with_a_txt_name(self, client, auth_headers, fake_vector_store):
+        """Renaming report.pdf to report.txt must not get past the check."""
+        response = client.post(
+            "/api/v1/upload-doc",
+            headers=auth_headers,
+            files={"file": ("disguised.txt", io.BytesIO(self.PDF), "text/plain")},
+        )
+        assert response.status_code == 415
+        assert "PDF" in response.json()["detail"]
+
+    def test_nul_bytes_are_rejected(self, client, auth_headers, fake_vector_store):
+        response = client.post(
+            "/api/v1/upload-doc",
+            headers=auth_headers,
+            files={"file": ("data.txt", io.BytesIO(b"text\x00with nul"), "text/plain")},
+        )
+        assert response.status_code == 415
+
+    def test_invalid_utf8_is_rejected(self, client, auth_headers, fake_vector_store):
+        response = client.post(
+            "/api/v1/upload-doc",
+            headers=auth_headers,
+            files={"file": ("latin.txt", io.BytesIO(b"caf\xe9 pol\xedtica"), "text/plain")},
+        )
+        assert response.status_code == 415
+        assert "UTF-8" in response.json()["detail"]
+
+    def test_ordinary_text_still_uploads(self, client, auth_headers, fake_vector_store):
+        response = upload(client, auth_headers, "policy.txt", "Leave is requested via the HR portal.")
+        assert response.status_code == 201
+
+    def test_unicode_text_uploads(self, client, auth_headers, fake_vector_store):
+        response = upload(client, auth_headers, "notes.md", "# Café policy\n\nRésumé review — 15 min.")
+        assert response.status_code == 201
+
+    def test_rejected_uploads_are_not_indexed(self, client, auth_headers, fake_vector_store):
+        client.post(
+            "/api/v1/upload-doc",
+            headers=auth_headers,
+            files={"file": ("report.pdf", io.BytesIO(self.PDF), "application/pdf")},
+        )
+        assert fake_vector_store == [], "a refused file must never reach the vector store"
+        assert client.get("/api/v1/upload-doc", headers=auth_headers).json()["documents"] == []

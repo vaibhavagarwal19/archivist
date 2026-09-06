@@ -13,6 +13,25 @@ from app.utils.text import chunk_text
 
 logger = logging.getLogger(__name__)
 
+# Extensions this assistant can actually read.
+SUPPORTED_SUFFIXES = {".txt", ".md", ".csv", ".json", ".log", ".yaml", ".yml"}
+
+# Formats people most often try to upload. Named explicitly so the error can
+# tell them what to do instead of failing with a generic decode message.
+BINARY_SUFFIX_HINTS = {
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".png", ".jpg", ".jpeg", ".gif", ".zip", ".gz", ".tar", ".mp4", ".mp3",
+}
+
+BINARY_MAGIC_NUMBERS: tuple[tuple[bytes, str], ...] = (
+    (b"%PDF", "PDF"),
+    (b"PK\x03\x04", "ZIP-based Office (docx/xlsx/pptx)"),
+    (b"\xd0\xcf\x11\xe0", "legacy Office (doc/xls)"),
+    (b"\x89PNG", "PNG image"),
+    (b"\xff\xd8\xff", "JPEG image"),
+    (b"GIF8", "GIF image"),
+)
+
 
 class DocumentService:
     def __init__(self) -> None:
@@ -27,6 +46,50 @@ class DocumentService:
         safe_stem = "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in stem)
         return f"{safe_stem}_{uuid4().hex[:8]}{suffix}"
 
+    @staticmethod
+    def _decode_text(file_name: str, raw_bytes: bytes) -> str:
+        """Accept only real UTF-8 text, and say plainly why anything else fails.
+
+        This used to decode with errors="ignore", so a PDF or .docx uploaded
+        successfully and was indexed as mojibake: retrieval then returned
+        unreadable chunks and the agent quoted them as if they were content.
+        Rejecting up front is far kinder than answering from garbage.
+        """
+        suffix = Path(file_name).suffix.lower()
+        if suffix in BINARY_SUFFIX_HINTS:
+            raise HTTPException(
+                status_code=415,
+                detail=(
+                    f"{suffix} files are not supported yet. This assistant reads plain text "
+                    f"({', '.join(sorted(SUPPORTED_SUFFIXES))}). Export the document as .txt and upload that."
+                ),
+            )
+
+        for magic, label in BINARY_MAGIC_NUMBERS:
+            if raw_bytes.startswith(magic):
+                raise HTTPException(
+                    status_code=415,
+                    detail=f"This looks like a {label} file, not text. Upload a plain text export instead.",
+                )
+
+        # A NUL byte in the first block is the classic "this is binary" signal.
+        if b"\x00" in raw_bytes[:8192]:
+            raise HTTPException(
+                status_code=415, detail="This file appears to be binary, not text."
+            )
+
+        try:
+            content = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(
+                status_code=415,
+                detail="File must be UTF-8 encoded text. Re-save it as UTF-8 and try again.",
+            ) from exc
+
+        if not content.strip():
+            raise HTTPException(status_code=400, detail="Uploaded file contains no readable text")
+        return content
+
     async def save_upload(self, db: Session, owner: User, upload: UploadFile) -> Document:
         Path(self.settings.upload_dir).mkdir(parents=True, exist_ok=True)
         safe_name = self._safe_file_name(upload.filename)
@@ -36,9 +99,7 @@ class DocumentService:
         if not raw_bytes:
             raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
-        content = raw_bytes.decode("utf-8", errors="ignore")
-        if not content.strip():
-            raise HTTPException(status_code=400, detail="Only text-like documents are supported right now")
+        content = self._decode_text(upload.filename or safe_name, raw_bytes)
 
         file_path.write_bytes(raw_bytes)
 
