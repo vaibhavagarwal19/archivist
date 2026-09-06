@@ -58,12 +58,14 @@ services:
       --server.address 0.0.0.0
       --server.headless true
     envVars:
-      # Point the UI at the API's public URL.
+      # Point the UI at the API's public URL. `property: host` returns the
+      # bare service name, which does not resolve in DNS - RENDER_EXTERNAL_URL
+      # is the full https://<service>.onrender.com address.
       - key: API_BASE_URL
         fromService:
           name: internal-ai-agents-api
           type: web
-          property: host
+          envVarKey: RENDER_EXTERNAL_URL
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
