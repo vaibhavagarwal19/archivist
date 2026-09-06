@@ -5,6 +5,10 @@ description = "FastAPI + LangGraph internal agent platform with RAG, auth, and w
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
+# Put the repo root on sys.path so `pytest` works the same as `python -m pytest`.
+# Without this, bare `pytest` cannot import `app` and conftest fails to load,
+# which is what broke CI while local runs (invoked with -m) passed.
+pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
 asyncio_default_fixture_loop_scope = "function"
