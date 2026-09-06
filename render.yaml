@@ -1,23 +1,22 @@
 # Render Blueprint for Archivist - deploys the API, the Streamlit UI, and
 # Postgres together.
 #
-# Service names stay as internal-ai-agents-* deliberately: renaming them here
-# makes the next blueprint sync create new services on new URLs and orphan the
-# running ones, which would break the live demo link.
-# Create it from the Render dashboard: New > Blueprint > point at this repo.
+# Renaming these services means the next Blueprint sync creates NEW services
+# on NEW URLs; the previously deployed internal-ai-agents-* services keep
+# running until they are deleted in the Render dashboard.
 #
 # After the first deploy, set GROQ_API_KEY on the api service (it is marked
 # sync:false so the key never lives in this file).
 
 databases:
-  - name: internal-ai-agents-db
-    databaseName: internal_ai_agents
-    user: internal_ai_agents
+  - name: archivist-db
+    databaseName: archivist
+    user: archivist
     plan: free
 
 services:
   - type: web
-    name: internal-ai-agents-api
+    name: archivist-api
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
@@ -25,7 +24,7 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: internal-ai-agents-db
+          name: archivist-db
           property: connectionString
       # Generated once by Render and kept across deploys, so tokens issued
       # before a redeploy stay valid.
@@ -53,7 +52,7 @@ services:
         value: "false"
 
   - type: web
-    name: internal-ai-agents-ui
+    name: archivist-ui
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
@@ -68,7 +67,7 @@ services:
       # is the full https://<service>.onrender.com address.
       - key: API_BASE_URL
         fromService:
-          name: internal-ai-agents-api
+          name: archivist-api
           type: web
           envVarKey: RENDER_EXTERNAL_URL
       - key: SECRET_KEY

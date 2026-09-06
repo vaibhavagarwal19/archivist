@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: internal_ai_agents
+      POSTGRES_DB: archivist
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +18,7 @@ services:
     build: .
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/internal_ai_agents
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/archivist
     ports:
       - "8000:8000"
     volumes:

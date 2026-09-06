@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     embedding_api_key: str = ""
     ollama_base_url: str = "http://127.0.0.1:11434"
 
-    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/internal_ai_agents"
+    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/archivist"
     redis_url: str = "redis://localhost:6379/0"
     # Celery/Redis is optional; uploads work without it.
     enable_background_tasks: bool = False

@@ -7,8 +7,8 @@ An internal knowledge agent that answers from your own documents — built as a 
 **Measured, not asserted:** an evaluation harness scores the intent router against the keyword baseline it falls back to — currently **96.3% vs 37.0%** over 54 labelled cases — and retrieval at **100% hit@4 / 0.93 MRR**. See [evals/](evals/).
 
 ```bash
-git clone https://github.com/vaibhavagarwal19/internalaiagents.git
-cd internalaiagents
+git clone https://github.com/vaibhavagarwal19/archivist.git
+cd archivist
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env          # add your GROQ_API_KEY
