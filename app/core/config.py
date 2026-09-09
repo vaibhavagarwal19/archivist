@@ -36,6 +36,15 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/archivist"
     redis_url: str = "redis://localhost:6379/0"
+    # --- Observability -----------------------------------------------------
+    # LangSmith traces every LangChain/LangGraph call. Opt-in: with no API key
+    # the app behaves exactly as before. Note that traces include prompts, so
+    # retrieved document content leaves this deployment when it is enabled.
+    langsmith_tracing: bool = False
+    langsmith_api_key: str = ""
+    langsmith_project: str = "archivist"
+    langsmith_endpoint: str = ""
+
     # Celery/Redis is optional; uploads work without it.
     enable_background_tasks: bool = False
     # The only address the agent may contact when the user names none.

@@ -127,6 +127,28 @@ python -m scripts.reindex --user 3 # one user
 
 Because document text lives in the database, the FAISS index is always reproducible and never needs backing up — which is also how deployment on an ephemeral filesystem works.
 
+### Tracing (optional)
+
+Set `LANGSMITH_API_KEY` and `LANGSMITH_TRACING=true` to send traces to
+[LangSmith](https://smith.langchain.com). Each request then appears as a nested
+trace: the graph run at the top, with `detect_intent`, `plan_retrieval`,
+`plan_actions` and `respond` as child spans carrying prompts, tokens and
+latency. The `langsmith` package already ships as a dependency of
+`langchain-core`, so there is nothing extra to install.
+
+Two details worth knowing:
+
+- The agent runs through LangChain and instruments itself, but `/generate-report`
+  and `/summarize` call the OpenAI SDK directly. `llm_client.py` wraps that
+  client with `wrap_openai`, otherwise enabling tracing would light up the chat
+  agent and leave those two endpoints looking as though they make no model calls.
+- Traces contain prompts, so retrieved document content leaves the deployment
+  once tracing is on.
+
+Tracing is opt-in and fails closed: with no API key the app behaves exactly as
+before, which keeps local runs and CI unaffected. This is separate from the
+per-request token/cost/latency figures shown in the UI, which work regardless.
+
 Redis and Celery are optional. `ENABLE_BACKGROUND_TASKS` defaults to `false`; uploads work without a broker.
 
 ## 5. Development

@@ -9,12 +9,15 @@ from app.api.routes import auth, chat, documents, health, reports, summarize, wo
 from app.core.config import get_settings
 from app.core.exceptions import ServiceConfigurationError
 from app.core.logging import RequestLoggingMiddleware, configure_logging
+from app.core.observability import configure_tracing
 from app.db.init_db import init_db
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     configure_logging()
+    # Before init_db so the startup log states plainly whether traces are on.
+    configure_tracing()
     init_db()
     rebuild_index_if_requested()
     yield
