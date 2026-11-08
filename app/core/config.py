@@ -61,6 +61,10 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        # .env is shared with the Streamlit UI, which reads API_BASE_URL from it.
+        # Without this, pydantic rejects that key and the API refuses to start
+        # on a fresh `cp .env.example .env`.
+        extra="ignore",
     )
 
     @model_validator(mode="after")
