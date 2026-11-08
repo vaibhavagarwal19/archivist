@@ -1,0 +1,5 @@
+Northwind Logistics - Vendor Agreement Summary: Borealis Cold Storage
+
+Borealis operates temperature-controlled warehousing in the Northeast. The contract runs for 24 months from 1 September 2024 and does not renew automatically. Renewal requires a signed amendment at least 60 days before expiry.
+
+The service level is 99.9 percent temperature compliance, with a credit of 10 percent of the monthly invoice for each breach. Storage rates are fixed for the first 12 months and may rise by at most 3 percent afterwards. Termination for convenience is not permitted. Early exit is only possible for an uncured material breach. The relationship owner is the Head of Supply Chain.

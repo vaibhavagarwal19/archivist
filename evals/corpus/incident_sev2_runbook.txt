@@ -1,0 +1,5 @@
+Northwind Logistics - Sev-2 Incident Runbook
+
+A Sev-2 is declared when a single customer-facing feature is degraded but workarounds exist. The on-call engineer must acknowledge within 20 minutes. The incident commander is the on-call team lead, who tracks work in the team channel rather than opening a war room.
+
+Status updates go to affected account managers every 2 hours. Executives are not paged unless the incident is upgraded to a Sev-1. A post-incident review is due within 10 business days and is optional if the cause was a known issue.

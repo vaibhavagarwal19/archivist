@@ -1,0 +1,5 @@
+Northwind Logistics - Procurement Approvals
+
+Purchases under 1,000 USD can be made by team leads using the corporate card. Purchases from 1,000 to 25,000 USD need a purchase request approved by the department head and Finance. Purchases above 25,000 USD require three competitive quotes and approval from the CFO.
+
+Software purchases of any amount require a security and privacy review by IT before signing. Contracts over 100,000 USD also need legal review. Splitting a purchase to stay under a threshold is a policy violation.

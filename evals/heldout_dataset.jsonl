@@ -1,0 +1,42 @@
+{"id": "ho-greet-01", "query": "hey team, hope your week is going well", "intent": "greeting"}
+{"id": "ho-greet-02", "query": "good evening!", "intent": "greeting"}
+{"id": "ho-greet-03", "query": "thank you so much, you've been great", "intent": "greeting"}
+{"id": "ho-greet-04", "query": "yo", "intent": "greeting"}
+{"id": "ho-greet-05", "query": "have a great weekend, talk soon", "intent": "greeting"}
+{"id": "ho-greet-06", "query": "hiya", "intent": "greeting"}
+{"id": "ho-sum-01", "query": "Can you recap yesterday's standup for me?", "intent": "summarization"}
+{"id": "ho-sum-02", "query": "Give me the gist of the Q3 planning notes", "intent": "summarization"}
+{"id": "ho-sum-03", "query": "Distil this thread into three bullet points", "intent": "summarization"}
+{"id": "ho-sum-04", "query": "What's the short version of the onboarding checklist?", "intent": "summarization"}
+{"id": "ho-sum-05", "query": "Tidy up my rambling meeting notes into key points and owners", "intent": "summarization"}
+{"id": "ho-sum-06", "query": "Compress the vendor contract summary down to one paragraph", "intent": "summarization"}
+{"id": "ho-sum-07", "query": "Wrap up what we covered in the offsite session in a few lines", "intent": "summarization"}
+{"id": "ho-rep-01", "query": "Draft a monthly reliability report for the exec team", "intent": "reporting"}
+{"id": "ho-rep-02", "query": "Write a status update for the board on the warehouse migration", "intent": "reporting"}
+{"id": "ho-rep-03", "query": "I need a formal brief on contractor spend for finance", "intent": "reporting"}
+{"id": "ho-rep-04", "query": "Produce a risk assessment document for the payroll integration", "intent": "reporting"}
+{"id": "ho-rep-05", "query": "Put together a leadership update on hiring progress", "intent": "reporting"}
+{"id": "ho-rep-06", "query": "Create a post-incident write-up we can share with customers", "intent": "reporting"}
+{"id": "ho-rep-07", "query": "Prepare a quarterly report on support ticket volumes", "intent": "reporting"}
+{"id": "ho-wf-01", "query": "Page the on-call engineer, the checkout service is down", "intent": "workflow"}
+{"id": "ho-wf-02", "query": "Send an email to finance reminding them about the budget approval", "intent": "workflow"}
+{"id": "ho-wf-03", "query": "Open a ticket with the platform team for the flaky deploys", "intent": "workflow"}
+{"id": "ho-wf-04", "query": "Escalate the vendor SLA breach to the head of supply chain", "intent": "workflow"}
+{"id": "ho-wf-05", "query": "Tell the support leads that the refund policy changed", "intent": "workflow"}
+{"id": "ho-wf-06", "query": "Schedule a follow-up with the payroll owner and notify them", "intent": "workflow"}
+{"id": "ho-wf-07", "query": "Assign this bug to the security champion and mark it urgent", "intent": "workflow"}
+{"id": "ho-kb-01", "query": "What's the carryover limit for unused PTO?", "intent": "knowledge_lookup"}
+{"id": "ho-kb-02", "query": "How many approvals does a pull request need here?", "intent": "knowledge_lookup"}
+{"id": "ho-kb-03", "query": "What's our meal allowance when travelling?", "intent": "knowledge_lookup"}
+{"id": "ho-kb-04", "query": "When does open enrollment start?", "intent": "knowledge_lookup"}
+{"id": "ho-kb-05", "query": "Who is the incident commander for a Sev-1?", "intent": "knowledge_lookup"}
+{"id": "ho-kb-06", "query": "How much is the home office stipend we offer?", "intent": "knowledge_lookup"}
+{"id": "ho-kb-07", "query": "Which of our vendor contracts doesn't auto-renew?", "intent": "knowledge_lookup"}
+{"id": "ho-kb-08", "query": "How long do we retain application logs?", "intent": "knowledge_lookup"}
+{"id": "ho-gen-01", "query": "What does idempotent mean in the context of APIs?", "intent": "general_chat"}
+{"id": "ho-gen-02", "query": "Rewrite this sentence to sound more confident", "intent": "general_chat"}
+{"id": "ho-gen-03", "query": "How many days are there between March 3 and April 20?", "intent": "general_chat"}
+{"id": "ho-gen-04", "query": "Suggest a name for our internal hackathon", "intent": "general_chat"}
+{"id": "ho-gen-05", "query": "What's the difference between TCP and UDP?", "intent": "general_chat"}
+{"id": "ho-gen-06", "query": "Is it better to use tabs or spaces?", "intent": "general_chat"}
+{"id": "ho-gen-07", "query": "Translate 'good morning' into Spanish", "intent": "general_chat"}

@@ -1,0 +1,5 @@
+Northwind Logistics - New Hire Onboarding Checklist
+
+Before day one, IT ships a laptop and an access badge to the new hire. On day one the hire meets their manager, completes payroll forms and joins the team channel. Security awareness training must be completed within 7 days.
+
+Access to production systems is granted only after the new hire completes the secure coding course, typically at the end of week 2. Each new hire is assigned an onboarding buddy for the first 60 days. The manager and the hire agree a 30-60-90 day plan by the end of week 1.

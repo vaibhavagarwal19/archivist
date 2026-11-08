@@ -1,0 +1,5 @@
+Northwind Logistics - On-Call Rotation
+
+Each engineering team runs a weekly on-call rotation that hands over every Monday at 10:00 UTC. Engineers can be on-call at most one week in every four. The primary on-call carries the pager, and the secondary is paged if the primary does not acknowledge within 10 minutes.
+
+On-call engineers receive a 250 USD weekly stipend and one day of compensatory time off for each week with more than three overnight pages. Swaps must be recorded in the scheduling tool at least 48 hours before the shift.

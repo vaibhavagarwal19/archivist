@@ -1,0 +1,5 @@
+Northwind Logistics - Expense Policy, Version 2 (effective 1 January 2025)
+
+This version replaces Version 1. Meals during business travel are reimbursed up to 60 USD per day. Any single expense above 250 USD requires manager pre-approval, and expenses above 2,000 USD require pre-approval from the department head.
+
+Receipts are required for every expense over 25 USD. Claims must be submitted within 30 days of the expense through the Finance portal. Alcohol is not reimbursable. Home-office equipment is handled by the stipend policy, not through expense claims.

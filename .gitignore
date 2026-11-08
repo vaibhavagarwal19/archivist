@@ -24,3 +24,6 @@ logs/
 
 # OS
 .DS_Store
+
+# Local embedding-model cache (used by CI via FASTEMBED_CACHE_PATH)
+.fastembed-cache/

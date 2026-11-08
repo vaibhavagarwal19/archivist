@@ -1,0 +1,5 @@
+Northwind Logistics - Data Retention Policy
+
+Customer shipment records are retained for 7 years. Application logs are retained for 90 days. Support chat transcripts are retained for 2 years. Marketing email lists are kept until the contact unsubscribes, and employee HR files are kept for 7 years after employment ends.
+
+Deletion requests from customers must be completed within 30 days. Backups are exempt from immediate deletion but are overwritten on the standard 35-day backup cycle. Legal holds override all retention periods and are placed only by the General Counsel.

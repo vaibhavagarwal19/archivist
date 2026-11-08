@@ -1,0 +1,5 @@
+Northwind Logistics - Q3 Planning Meeting Notes (Operations, Finance, Platform)
+
+Decisions: the warehouse management migration moves from July to September because the Borealis cutover window is not available until then. Finance approved 450,000 USD for the routing optimisation project, with a check-in at the end of August. The platform team will freeze new feature work for two weeks in July to pay down reliability debt.
+
+Action items: Priya will confirm the September cutover date with Borealis by 20 June. Marcus will publish the routing project plan by 30 June. Elena will schedule the reliability debt review.
