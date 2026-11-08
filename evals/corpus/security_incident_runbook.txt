@@ -1,0 +1,5 @@
+Northwind Logistics - Security Incident Runbook
+
+Suspected data exposure, credential compromise, or malware must be reported to security@northwind.example immediately, not through the normal ticket queue. The Security Operations on-call acknowledges within 10 minutes. Affected accounts are disabled first and investigated afterwards.
+
+The Chief Information Security Officer decides whether regulators or customers must be notified, and legal notification clocks start when the CISO confirms a breach. Evidence such as logs and disk images is preserved for 180 days. Engineers must never delete or rotate logs on an affected system before Security Operations approves.

@@ -1,0 +1,5 @@
+Northwind Logistics - Customer Refund Policy
+
+Customers can request a refund for a missed delivery window within 14 days of the scheduled delivery date. Refunds up to 200 USD can be approved by a support agent. Refunds between 200 and 1,000 USD require a support team lead. Refunds above 1,000 USD require the Head of Customer Support.
+
+Refunds are issued to the original payment method within 5 to 7 business days. Damaged-goods claims require photo evidence uploaded within 48 hours of delivery. Enterprise contracts follow their own service credit terms instead of this policy.

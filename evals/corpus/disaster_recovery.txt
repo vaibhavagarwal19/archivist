@@ -1,0 +1,5 @@
+Northwind Logistics - Disaster Recovery and Backups
+
+Production databases are backed up continuously with point-in-time recovery for 35 days. The recovery time objective for the order management system is 4 hours and the recovery point objective is 5 minutes. The failover region is Frankfurt, and failover drills are run every quarter.
+
+Internal wikis and tools have a recovery time objective of 24 hours. Backup restores are tested monthly by the Reliability team, and failed restores are tracked as Sev-2 incidents.

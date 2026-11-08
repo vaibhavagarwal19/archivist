@@ -1,0 +1,20 @@
+{
+  "intent_dev": {
+    "baseline_accuracy": 0.37,
+    "model_accuracy": 0.93
+  },
+  "intent_heldout": {
+    "baseline_accuracy": 0.30,
+    "model_accuracy": 0.93
+  },
+  "retrieval": {
+    "hit_at_4": 0.95,
+    "mrr": 0.90
+  },
+  "retrieval_hard": {
+    "hit_at_1": 0.85,
+    "hit_at_4": 0.95,
+    "mrr": 0.90,
+    "fact_recall_at_4": 0.95
+  }
+}

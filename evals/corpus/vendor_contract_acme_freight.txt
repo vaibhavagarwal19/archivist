@@ -1,0 +1,5 @@
+Northwind Logistics - Vendor Agreement Summary: Acme Freight Partners
+
+Acme Freight provides last-mile delivery in the Midwest region. The contract runs for 36 months from 1 April 2024 and renews automatically for 12 months unless either party gives 90 days written notice.
+
+The service level is 98.5 percent on-time delivery measured monthly. Below that, Northwind receives a credit of 4 percent of the monthly invoice. Fuel surcharges are capped at 8 percent. Termination for convenience requires a fee equal to two months of average invoices. The relationship owner at Northwind is the Director of Regional Logistics.

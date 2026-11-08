@@ -1,0 +1,5 @@
+Northwind Logistics - Account Security Policy
+
+Multi-factor authentication is mandatory for every employee account, and hardware security keys are required for administrators. Passwords must be at least 14 characters and are not rotated unless compromise is suspected.
+
+Production access is granted for 8 hours at a time through just-in-time elevation, and every session is recorded. Shared accounts are prohibited. Lost laptops or phones must be reported to Security within 1 hour. Each manager performs a quarterly access review.

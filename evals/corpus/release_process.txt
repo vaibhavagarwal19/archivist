@@ -1,0 +1,5 @@
+Northwind Logistics - Release Process
+
+Production releases happen on Tuesdays and Thursdays at 14:00 UTC. A feature freeze applies from Friday 12:00 UTC to Monday 08:00 UTC. There are no deploys during that time except approved hotfixes.
+
+Releases use a canary stage at 5 percent of traffic for 30 minutes before full rollout. If the error rate rises above 1 percent during the canary, the release is automatically rolled back. Release notes are posted to the releases channel. Database migrations must be backward compatible for at least one release.

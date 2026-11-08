@@ -1,0 +1,5 @@
+Northwind Logistics - Sev-1 Incident Runbook
+
+A Sev-1 is declared when customer shipments are blocked across a region or employee payments are at risk. The on-call engineer must acknowledge within 5 minutes. The incident commander is the Director of Platform Operations, who opens a dedicated war-room channel named after the ticket number.
+
+Status updates go to executives every 30 minutes. The VP of Engineering and the Head of Customer Support are paged automatically. A written post-incident review is due within 3 business days and must be reviewed by the Reliability Council.

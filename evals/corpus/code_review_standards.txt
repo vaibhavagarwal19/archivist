@@ -1,0 +1,5 @@
+Northwind Logistics - Code Review Standards
+
+Every change requires at least two approvals, and at least one must come from a code owner of the affected directory. Pull requests should stay under 400 changed lines. Larger ones must be split or carry a written justification. Reviewers should respond within one business day.
+
+Changes touching billing or authentication also require sign-off from the Security Champion. Authors may not merge their own pull request. CI must pass, including the unit and integration test suites, before merge.
